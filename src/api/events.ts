@@ -6,6 +6,7 @@ export type EventInsert = Database['public']['Tables']['vd_events']['Insert'];
 export type EventUpdate = Database['public']['Tables']['vd_events']['Update'];
 export type EventRow = Database['public']['Tables']['vd_events']['Row'] & {
   parent?: { slug: string } | { slug: string }[] | null;
+  vd_event_items?: { item_value: string; is_selected: boolean; selection_order: number | null }[] | null;
 };
 export type EventItemInsert = Database['public']['Tables']['vd_event_items']['Insert'];
 export type EventItemRow = Database['public']['Tables']['vd_event_items']['Row'];
@@ -47,7 +48,7 @@ export const eventsApi = {
    * and specific column selection.
    */
   async list(limit: number = 12, offset: number = 0, userId?: string | null): Promise<EventRow[]> {
-    const cols = 'id, event_name, status, slug, scheduled_start_time, select_count, created_by';
+    const cols = 'id, event_name, status, slug, scheduled_start_time, select_count, created_by, vd_event_items(item_value, is_selected, selection_order)';
 
     // 1. Fetch active and scheduled events (always needed to determine custom sort order/offset logic)
     let activeQuery = supabase
@@ -131,16 +132,38 @@ export const eventsApi = {
    */
   async getBySlugOrId(slugOrId: string) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
-    const filterField = isUuid ? 'id' : 'slug';
+    if (isUuid) {
+      const { data, error } = await supabase
+        .from(TABLES.EVENTS)
+        .select('*, parent:vd_events!duplicated_from(slug)')
+        .eq('id', slugOrId)
+        .maybeSingle();
 
-    const { data, error } = await supabase
+      if (error) throw error;
+      return data as any;
+    }
+
+    const cleanCode = slugOrId.trim();
+
+    // 1. Try exact slug match (case-insensitive)
+    let { data, error } = await supabase
       .from(TABLES.EVENTS)
       .select('*, parent:vd_events!duplicated_from(slug)')
-      .eq(filterField, slugOrId)
+      .ilike('slug', cleanCode)
       .maybeSingle();
 
     if (error) throw error;
-    return data as any; // Cast to bypass strict event type constraints for parent joins
+    if (data) return data as any;
+
+    // 2. Try suffix match (case-insensitive, e.g. "a1b2c3" matching "my-event-a1b2c3")
+    const { data: suffixData, error: suffixError } = await supabase
+      .from(TABLES.EVENTS)
+      .select('*, parent:vd_events!duplicated_from(slug)')
+      .ilike('slug', `%-${cleanCode}`)
+      .maybeSingle();
+
+    if (suffixError) throw suffixError;
+    return suffixData as any;
   },
 
   /**
@@ -319,6 +342,19 @@ export const eventsApi = {
     }
 
     throw new Error(`Collision resolution failed after 5 attempts. Last error: ${lastError?.message}`);
+  },
+
+  /**
+   * Get the total count of events for a user.
+   */
+  async count(userId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from(TABLES.EVENTS)
+      .select('*', { count: 'exact', head: true })
+      .eq('created_by', userId);
+
+    if (error) throw error;
+    return count || 0;
   },
 
   /**

@@ -26,6 +26,21 @@ export function Login() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const getFriendlyErrorMessage = (err: any, defaultMsg: string): string => {
+    if (!err) return defaultMsg;
+    const msg = typeof err === 'string'
+      ? err
+      : (err && typeof err === 'object' && 'message' in err ? String(err.message) : '');
+
+    if (msg.includes('provider is not enabled') || msg.includes('Unsupported provider')) {
+      if (import.meta.env.DEV) {
+        return 'This login provider is not enabled in your Supabase dashboard. Please enable it under Authentication > Providers in the Supabase console.';
+      }
+      return 'This login provider is currently unavailable. Please sign in with email/password or contact support.';
+    }
+    return msg || defaultMsg;
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -39,7 +54,7 @@ export function Login() {
       await signInWithGoogle();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Google sign-in failed.');
+      setError(getFriendlyErrorMessage(err, 'Google sign-in failed.'));
       setLoading(false);
     }
   };
@@ -52,7 +67,7 @@ export function Login() {
       await signInWithMicrosoft();
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Microsoft sign-in failed.');
+      setError(getFriendlyErrorMessage(err, 'Microsoft sign-in failed.'));
       setLoading(false);
     }
   };
@@ -80,11 +95,12 @@ export function Login() {
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Authentication failed. Please verify credentials.');
+      setError(getFriendlyErrorMessage(err, 'Authentication failed. Please verify credentials.'));
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="max-w-md mx-auto py-12 px-4 animate-fade-in">

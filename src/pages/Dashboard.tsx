@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { eventsApi, type EventRow } from '@/api/events';
 import { ROUTES } from '@/config/routes.config';
-import { PlusCircle, Trash2, Calendar, Users, Eye, CheckCircle, Play } from 'lucide-react';
+import { PlusCircle, Trash2, Calendar, Users, Eye, CheckCircle, Play, Trophy } from 'lucide-react';
 
 export function Dashboard() {
   const { user, loading: loadingAuth } = useAuth();
@@ -15,6 +15,7 @@ export function Dashboard() {
   const [joinCode, setJoinCode] = useState('');
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
 
   const PAGE_SIZE = 12;
 
@@ -53,9 +54,23 @@ export function Dashboard() {
     }
   };
 
+  const loadTotalCount = async () => {
+    if (!user) {
+      setTotalCount(null);
+      return;
+    }
+    try {
+      const count = await eventsApi.count(user.id);
+      setTotalCount(count);
+    } catch (err) {
+      console.error('Failed to load total events count:', err);
+    }
+  };
+
   useEffect(() => {
     if (!loadingAuth) {
       loadEvents(0, false);
+      loadTotalCount();
     }
   }, [user, loadingAuth]);
 
@@ -98,11 +113,13 @@ export function Dashboard() {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.preventDefault(); // prevent navigation
+    e.stopPropagation(); // prevent card click navigation trigger
     if (!confirm('Are you sure you want to delete this event?')) return;
 
     try {
       await eventsApi.delete(id);
       setEvents((prev) => prev.filter((event) => event.id !== id));
+      setTotalCount((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
     } catch (err: any) {
       alert(err.message || 'Failed to delete event.');
     }
@@ -305,7 +322,7 @@ export function Dashboard() {
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-border/20 pb-4">
             <h2 className="text-xl font-bold font-heading">
-              My Managed Drawing Events
+              My Draw History {totalCount !== null ? `(${totalCount})` : ''}
             </h2>
             <span className="text-2xs text-muted-foreground font-semibold">
               Host session: {user.email}
@@ -348,24 +365,42 @@ export function Dashboard() {
                   };
                   const StatusIcon = statusIcons[event.status] || Calendar;
     
+                  const winners = event.vd_event_items
+                    ? event.vd_event_items
+                        .filter((item: any) => item.is_selected)
+                        .sort((a: any, b: any) => (a.selection_order || 0) - (b.selection_order || 0))
+                    : [];
+
                   return (
-                    <div
+                    <Link
                       key={event.id}
-                      className="group relative flex flex-col justify-between p-5 glass border border-border/40 hover:border-primary/30 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300"
+                      to={ROUTES.DRAW_ROOM(event.slug)}
+                      className="group relative flex flex-col justify-between p-5 glass border border-border/40 hover:border-primary/45 rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer block text-left"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-3">
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-2xs font-bold uppercase ${
-                              statusColors[event.status] || ''
-                            }`}
-                          >
-                            <StatusIcon className="w-3.5 h-3.5" />
-                            {event.status}
-                          </span>
+                          {event.status === 'completed' ? (
+                            <div className="flex gap-2">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400 text-2xs font-bold uppercase">
+                                Completed
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-secondary text-foreground text-2xs font-bold uppercase">
+                                Locked
+                              </span>
+                            </div>
+                          ) : (
+                            <span
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-2xs font-bold uppercase ${
+                                statusColors[event.status] || ''
+                              }`}
+                            >
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {event.status}
+                            </span>
+                          )}
     
                           <button
-                            onClick={(e) => handleDelete(event.id, e)}
+                            onClick={(e) => { e.preventDefault(); handleDelete(event.id, e); }}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
                             title="Delete Event"
                           >
@@ -373,35 +408,46 @@ export function Dashboard() {
                           </button>
                         </div>
     
-                        <Link
-                          to={ROUTES.DRAW_ROOM(event.slug)}
-                          className="block font-heading font-bold text-lg text-blue-700 dark:text-blue-400 group-hover:underline leading-snug"
-                        >
-                          {event.event_name}
-                        </Link>
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <h3 className="font-heading font-extrabold text-lg text-foreground group-hover:text-primary transition-colors leading-snug">
+                            {event.event_name}
+                          </h3>
+                          <span className="text-3xs font-mono px-1.5 py-0.5 rounded bg-secondary/80 text-muted-foreground border border-border/10 font-semibold uppercase">
+                            {`VD-${event.id.substring(0, 6).toUpperCase()}`}
+                          </span>
+                        </div>
     
-                        <div className="mt-4 space-y-2 text-2sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4 text-muted-foreground/75" />
-                            <span>Starts: {formatTime(event.scheduled_start_time)}</span>
+                        <div className="mt-1.5 text-2sm text-muted-foreground">
+                          {formatTime(event.scheduled_start_time)}
+                        </div>
+
+                        {winners.length > 0 && (
+                          <div className="mt-4 pt-3 border-t border-border/20 space-y-1">
+                            <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">
+                              Winners:
+                            </span>
+                            <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
+                              {winners.map((winner: any, idx: number) => (
+                                <div key={idx} className="text-2sm font-bold text-foreground">
+                                  {winner.item_value}
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-muted-foreground/75" />
-                            <span>Select target: {event.select_count} item(s)</span>
-                          </div>
+                        )}
+
+                        <div className="mt-4 text-3xs font-bold uppercase tracking-wider text-muted-foreground">
+                          {event.select_count} {event.select_count === 1 ? 'selection' : 'selections'}
                         </div>
                       </div>
     
                       <div className="mt-5 pt-4 border-t border-border/20 flex items-center justify-end">
-                        <Link
-                          to={ROUTES.DRAW_ROOM(event.slug)}
-                          className="inline-flex items-center gap-1 text-2sm font-semibold text-primary hover:gap-1.5 transition-all"
-                        >
+                        <span className="inline-flex items-center gap-1 text-2sm font-semibold text-primary group-hover:gap-1.5 transition-all">
                           Enter Room
                           <Eye className="w-4 h-4" />
-                        </Link>
+                        </span>
                       </div>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>
