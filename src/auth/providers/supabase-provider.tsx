@@ -102,6 +102,50 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setLoading(false);
   };
 
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/dashboard`,
+      },
+    });
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
+  };
+
+  const signInWithMicrosoft = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        redirectTo: `${window.location.origin}/dashboard`,
+        scopes: 'openid email profile',
+      },
+    });
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
+  };
+
+  const signInWithMagicLink = async (email: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/dashboard`,
+      },
+    });
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
+    setLoading(false);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -110,6 +154,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         login,
         register,
         logout,
+        signInWithGoogle,
+        signInWithMicrosoft,
+        signInWithMagicLink,
       }}
     >
       {children}

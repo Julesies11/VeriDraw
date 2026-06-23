@@ -379,24 +379,24 @@ export function DrawRoom() {
   // Formulate Live Audit Trail Logs based on draw history timestamps
   const auditLogs = useMemo(() => {
     if (!event) return [];
-    const logs: Array<{ id: string; time: string; text: string }> = [];
+    const logs: Array<{ id: string; timestamp: number; text: string }> = [];
 
     logs.push({
       id: 'create',
-      time: new Date(event.created_at).toLocaleTimeString(),
+      timestamp: new Date(event.created_at).getTime(),
       text: 'Event session initialized',
     });
 
     const lockTime = new Date(event.scheduled_start_time);
     logs.push({
       id: 'lock',
-      time: lockTime.toLocaleTimeString(),
+      timestamp: lockTime.getTime(),
       text: `Entries locked (${items.length} participants)`,
     });
 
     logs.push({
       id: 'seed',
-      time: new Date(lockTime.getTime() + 1000).toLocaleTimeString(),
+      timestamp: lockTime.getTime() + 1000,
       text: 'Public verification seed published',
     });
 
@@ -412,27 +412,45 @@ export function DrawRoom() {
 
         logs.push({
           id: `spin-${item.id}`,
-          time: spinTime.toLocaleTimeString(),
+          timestamp: spinTime.getTime(),
           text: `Spin initiated (Round ${index + 1} of ${event.select_count})`,
         });
         logs.push({
           id: `win-${item.id}`,
-          time: selectTime.toLocaleTimeString(),
+          timestamp: selectTime.getTime(),
           text: `Selected winner: ${item.item_value}`,
         });
         logs.push({
           id: `remove-${item.id}`,
-          time: removeTime.toLocaleTimeString(),
+          timestamp: removeTime.getTime(),
           text: `${item.item_value} removed from active pool`,
         });
       });
 
-    return logs.sort((a, b) => a.time.localeCompare(b.time));
+    // Sort chronologically by timestamp numeric values
+    return logs.sort((a, b) => a.timestamp - b.timestamp);
   }, [event, items]);
 
   const handleDownloadLogs = () => {
     if (!event) return;
-    const logText = auditLogs.map(l => `[${l.time}] ${l.text}`).join('\n');
+
+    const header = [
+      '==================================================',
+      'VERIDRAW AUDIT LOG CERTIFICATE',
+      '==================================================',
+      `Event Name:       ${event.event_name}`,
+      `Event ID:         VD-${event.id.substring(0, 6).toUpperCase()}`,
+      `Scheduled Time:   ${new Date(event.scheduled_start_time).toLocaleString()}`,
+      `Public Seed:      ${generatedSeed}`,
+      `Total Entries:    ${items.length}`,
+      '==================================================\n\n'
+    ].join('\n');
+
+    const logLines = auditLogs
+      .map(l => `[${new Date(l.timestamp).toLocaleString()}] ${l.text}`)
+      .join('\n');
+
+    const logText = header + logLines;
     const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -907,14 +925,14 @@ export function DrawRoom() {
               </div>
             </div>
 
-            {/* Export Selection Logs action */}
+            {/* Download Draw History action */}
             <div className="border-t border-border/20 pt-4 flex gap-2">
               <button
                 onClick={handleDownloadLogs}
                 className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-2xs font-semibold transition-all cursor-pointer select-none"
               >
                 <Download className="w-3.5 h-3.5 text-muted-foreground" />
-                Export Selection Logs
+                Download Draw History
               </button>
             </div>
           </div>

@@ -6,29 +6,64 @@ import { ROUTES } from '@/config/routes.config';
 import { PlusCircle, Trash2, Calendar, Users, Eye, CheckCircle, Play } from 'lucide-react';
 
 export function Dashboard() {
-  const { user } = useAuth();
+  const { user, loading: loadingAuth } = useAuth();
   const navigate = useNavigate();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  const loadEvents = async () => {
+  const PAGE_SIZE = 12;
+
+  const loadEvents = async (currentOffset: number, append: boolean = false) => {
+    if (!user) {
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
     try {
-      setLoading(true);
-      const data = await eventsApi.list();
-      setEvents(data);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+      const data = await eventsApi.list(PAGE_SIZE, currentOffset, user.id);
+      
+      if (append) {
+        setEvents((prev) => [...prev, ...data]);
+      } else {
+        setEvents(data);
+      }
+      
+      // If we got fewer than PAGE_SIZE items, we know there are no more items left
+      if (data.length < PAGE_SIZE) {
+        setHasMore(false);
+      } else {
+        setHasMore(true);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to load drawing events.');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
   useEffect(() => {
-    loadEvents();
-  }, []);
+    if (!loadingAuth) {
+      loadEvents(0, false);
+    }
+  }, [user, loadingAuth]);
+
+  const handleLoadMore = () => {
+    const nextOffset = offset + PAGE_SIZE;
+    setOffset(nextOffset);
+    loadEvents(nextOffset, true);
+  };
 
   useEffect(() => {
     const checkQuickDrawUpgrade = async () => {
@@ -162,17 +197,17 @@ export function Dashboard() {
                   Got an invite? Enter the link or event code to watch the draw unfold live.
                 </p>
               </div>
-              <form onSubmit={handleJoin} className="w-full flex items-center gap-1.5">
+              <form onSubmit={handleJoin} className="w-full flex flex-col gap-2.5">
                 <input
                   type="text"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="Invite Code / Slug"
-                  className="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                  placeholder="Invite Code"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-secondary hover:bg-border/20 border border-border text-2sm font-semibold transition-all cursor-pointer whitespace-nowrap"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-secondary hover:bg-border/20 border border-border text-2sm font-semibold transition-all cursor-pointer"
                 >
                   Join
                 </button>
@@ -183,196 +218,216 @@ export function Dashboard() {
       </div>
 
       {/* Why VeriDraw Section */}
-      <div className="p-6 glass border border-border/30 rounded-3xl bg-secondary/10 shadow-sm max-w-4xl mx-auto">
-        <h2 className="text-md font-extrabold font-heading text-center text-foreground mb-6">
-          Why VeriDraw?
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="flex flex-col items-center text-center p-3 space-y-1.5">
-            <span className="text-lg">✅</span>
-            <span className="text-2xs font-semibold text-muted-foreground leading-snug">Transparent random selection</span>
+      {!user && (
+        <>
+          <div className="p-6 glass border border-border/30 rounded-3xl bg-secondary/10 shadow-sm max-w-4xl mx-auto">
+            <h2 className="text-md font-extrabold font-heading text-center text-foreground mb-6">
+              Why VeriDraw?
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="flex flex-col items-center text-center p-3 space-y-1.5">
+                <span className="text-lg">✅</span>
+                <span className="text-2xs font-semibold text-muted-foreground leading-snug">Transparent random selection</span>
+              </div>
+              <div className="flex flex-col items-center text-center p-3 space-y-1.5">
+                <span className="text-lg">✅</span>
+                <span className="text-2xs font-semibold text-muted-foreground leading-snug">Live events with spectator viewing</span>
+              </div>
+              <div className="flex flex-col items-center text-center p-3 space-y-1.5">
+                <span className="text-lg">✅</span>
+                <span className="text-2xs font-semibold text-muted-foreground leading-snug">Shareable event links</span>
+              </div>
+              <div className="flex flex-col items-center text-center p-3 space-y-1.5">
+                <span className="text-lg">✅</span>
+                <span className="text-2xs font-semibold text-muted-foreground leading-snug">Verifiable results</span>
+              </div>
+              <div className="flex flex-col items-center text-center p-3 space-y-1.5">
+                <span className="text-lg">✅</span>
+                <span className="text-2xs font-semibold text-muted-foreground leading-snug">No account required for Quick Draw</span>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col items-center text-center p-3 space-y-1.5">
-            <span className="text-lg">✅</span>
-            <span className="text-2xs font-semibold text-muted-foreground leading-snug">Live events with spectator viewing</span>
-          </div>
-          <div className="flex flex-col items-center text-center p-3 space-y-1.5">
-            <span className="text-lg">✅</span>
-            <span className="text-2xs font-semibold text-muted-foreground leading-snug">Shareable event links</span>
-          </div>
-          <div className="flex flex-col items-center text-center p-3 space-y-1.5">
-            <span className="text-lg">✅</span>
-            <span className="text-2xs font-semibold text-muted-foreground leading-snug">Verifiable results</span>
-          </div>
-          <div className="flex flex-col items-center text-center p-3 space-y-1.5">
-            <span className="text-lg">✅</span>
-            <span className="text-2xs font-semibold text-muted-foreground leading-snug">No account required for Quick Draw</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Additional Info Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-        {/* Card 1: Use VeriDraw For */}
-        <div className="p-6 glass border border-border/30 rounded-3xl bg-secondary/10 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-md font-extrabold font-heading text-primary mb-4">
-              Use VeriDraw For
-            </h3>
-            <ul className="space-y-2.5">
-              <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                Prize draws
-              </li>
-              <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                Team selection
-              </li>
-              <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                Volunteer allocation
-              </li>
-              <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                Tournament seeding
-              </li>
-              <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                Venue selection
-              </li>
-              <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                Random decisions
-              </li>
-            </ul>
-          </div>
-        </div>
+          {/* Additional Info Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {/* Card 1: Use VeriDraw For */}
+            <div className="p-6 glass border border-border/30 rounded-3xl bg-secondary/10 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-md font-extrabold font-heading text-primary mb-4">
+                  Use VeriDraw For
+                </h3>
+                <ul className="space-y-2.5">
+                  <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Prize draws
+                  </li>
+                  <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Team selection
+                  </li>
+                  <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Volunteer allocation
+                  </li>
+                  <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Tournament seeding
+                  </li>
+                  <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Venue selection
+                  </li>
+                  <li className="flex items-center gap-2.5 text-2sm text-muted-foreground font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                    Random decisions
+                  </li>
+                </ul>
+              </div>
+            </div>
 
-        {/* Card 2: Trust Every Result */}
-        <div className="p-6 glass border border-border/30 rounded-3xl bg-secondary/10 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-md font-extrabold font-heading text-primary mb-4">
-              Trust Every Result
-            </h3>
-            <p className="text-2sm text-muted-foreground font-medium leading-relaxed">
-              VeriDraw records every draw and can provide verification that selections were made fairly and without manipulation.
-            </p>
+            {/* Card 2: Trust Every Result */}
+            <div className="p-6 glass border border-border/30 rounded-3xl bg-secondary/10 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 className="text-md font-extrabold font-heading text-primary mb-4">
+                  Trust Every Result
+                </h3>
+                <p className="text-2sm text-muted-foreground font-medium leading-relaxed">
+                  VeriDraw records every draw and can provide verification that selections were made fairly and without manipulation.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
 
-      {/* Dashboard Section (Host specific or generic info) */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between border-b border-border/20 pb-4">
-          <h2 className="text-xl font-bold font-heading">
-            {user ? 'My Managed Drawing Events' : 'Active Public Rooms'}
-          </h2>
-          {user && (
+      {/* Dashboard Section (Host specific) */}
+      {user && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between border-b border-border/20 pb-4">
+            <h2 className="text-xl font-bold font-heading">
+              My Managed Drawing Events
+            </h2>
             <span className="text-2xs text-muted-foreground font-semibold">
               Host session: {user.email}
             </span>
+          </div>
+
+          {error && (
+            <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
+              {error}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 space-y-3">
+              <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+              <span className="text-sm text-muted-foreground font-medium">Loading events...</span>
+            </div>
+          ) : events.length === 0 ? (
+            <div className="flex flex-col items-center justify-center text-center p-12 glass border border-border/40 rounded-2xl">
+              <Calendar className="w-12 h-12 text-muted-foreground/60 mb-4" />
+              <h3 className="text-lg font-semibold font-heading">No events found</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                You haven't created any events yet. Click 'Create Event' to set up your first draw!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {events.map((event) => {
+                  const statusColors: Record<string, string> = {
+                    scheduled: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
+                    active: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
+                    completed: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+                  };
+    
+                  const statusIcons: Record<string, any> = {
+                    scheduled: Calendar,
+                    active: Play,
+                    completed: CheckCircle,
+                  };
+                  const StatusIcon = statusIcons[event.status] || Calendar;
+    
+                  return (
+                    <div
+                      key={event.id}
+                      className="group relative flex flex-col justify-between p-5 glass border border-border/40 hover:border-primary/30 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-2xs font-bold uppercase ${
+                              statusColors[event.status] || ''
+                            }`}
+                          >
+                            <StatusIcon className="w-3.5 h-3.5" />
+                            {event.status}
+                          </span>
+    
+                          <button
+                            onClick={(e) => handleDelete(event.id, e)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                            title="Delete Event"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+    
+                        <Link
+                          to={ROUTES.DRAW_ROOM(event.slug)}
+                          className="block font-heading font-bold text-lg text-blue-700 dark:text-blue-400 group-hover:underline leading-snug"
+                        >
+                          {event.event_name}
+                        </Link>
+    
+                        <div className="mt-4 space-y-2 text-2sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 text-muted-foreground/75" />
+                            <span>Starts: {formatTime(event.scheduled_start_time)}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Users className="w-4 h-4 text-muted-foreground/75" />
+                            <span>Select target: {event.select_count} item(s)</span>
+                          </div>
+                        </div>
+                      </div>
+    
+                      <div className="mt-5 pt-4 border-t border-border/20 flex items-center justify-end">
+                        <Link
+                          to={ROUTES.DRAW_ROOM(event.slug)}
+                          className="inline-flex items-center gap-1 text-2sm font-semibold text-primary hover:gap-1.5 transition-all"
+                        >
+                          Enter Room
+                          <Eye className="w-4 h-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {hasMore && (
+                <div className="flex justify-center pt-2">
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-border bg-secondary hover:bg-border/20 text-sm font-semibold transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <div className="w-4 h-4 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      'Load More Events'
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
-
-        {error && (
-          <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 space-y-3">
-            <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-            <span className="text-sm text-muted-foreground font-medium">Loading events...</span>
-          </div>
-        ) : events.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center p-12 glass border border-border/40 rounded-2xl">
-            <Calendar className="w-12 h-12 text-muted-foreground/60 mb-4" />
-            <h3 className="text-lg font-semibold font-heading">No events found</h3>
-            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              {user 
-                ? "You haven't created any events yet. Click 'Create Event' to set up your first draw!"
-                : "No public events are active right now. Sign in to host your own!"}
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {events.map((event) => {
-              const isOwner = user && event.created_by === user.id;
-              const statusColors: Record<string, string> = {
-                scheduled: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-                active: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-                completed: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
-              };
-
-              const statusIcons: Record<string, any> = {
-                scheduled: Calendar,
-                active: Play,
-                completed: CheckCircle,
-              };
-              const StatusIcon = statusIcons[event.status] || Calendar;
-
-              return (
-                <div
-                  key={event.id}
-                  className="group relative flex flex-col justify-between p-5 glass border border-border/40 hover:border-primary/30 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300"
-                >
-                  <div>
-                    <div className="flex items-center justify-between mb-3">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-2xs font-bold uppercase ${
-                          statusColors[event.status] || ''
-                        }`}
-                      >
-                        <StatusIcon className="w-3.5 h-3.5" />
-                        {event.status}
-                      </span>
-
-                      {isOwner && (
-                        <button
-                          onClick={(e) => handleDelete(event.id, e)}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                          title="Delete Event"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-
-                    <Link
-                      to={ROUTES.DRAW_ROOM(event.slug)}
-                      className="block font-heading font-bold text-lg text-blue-700 dark:text-blue-400 group-hover:underline leading-snug"
-                    >
-                      {event.event_name}
-                    </Link>
-
-                    <div className="mt-4 space-y-2 text-2sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground/75" />
-                        <span>Starts: {formatTime(event.scheduled_start_time)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4 text-muted-foreground/75" />
-                        <span>Select target: {event.select_count} item(s)</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 pt-4 border-t border-border/20 flex items-center justify-end">
-                    <Link
-                      to={ROUTES.DRAW_ROOM(event.slug)}
-                      className="inline-flex items-center gap-1 text-2sm font-semibold text-primary hover:gap-1.5 transition-all"
-                    >
-                      Enter Room
-                      <Eye className="w-4 h-4" />
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

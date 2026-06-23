@@ -5,10 +5,17 @@ import { ROUTES } from '@/config/routes.config';
 import { Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
 
 export function Login() {
-  const { login, register } = useAuth();
+  const {
+    login,
+    register,
+    signInWithGoogle,
+    signInWithMicrosoft,
+    signInWithMagicLink,
+  } = useAuth();
   const navigate = useNavigate();
 
   const [isSignUp, setIsSignUp] = useState(false);
+  const [isMagicLink, setIsMagicLink] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -22,6 +29,32 @@ export function Login() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setSuccessMsg('');
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Google sign-in failed.');
+      setLoading(false);
+    }
+  };
+
+  const handleMicrosoftSignIn = async () => {
+    setError('');
+    setSuccessMsg('');
+    setLoading(true);
+    try {
+      await signInWithMicrosoft();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Microsoft sign-in failed.');
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,6 +71,9 @@ export function Login() {
         await register(formData.email, formData.password, formData.name);
         setSuccessMsg('Sign up successful! You can now log in.');
         setIsSignUp(false);
+      } else if (isMagicLink) {
+        await signInWithMagicLink(formData.email);
+        setSuccessMsg('Check your email for the magic sign-in link!');
       } else {
         await login(formData.email, formData.password);
         navigate(ROUTES.DASHBOARD);
@@ -122,27 +158,28 @@ export function Login() {
             </div>
           </div>
 
-          {/* Password */}
-          <div className="space-y-1.5">
-            <label className="text-2sm font-semibold tracking-wide" htmlFor="password">
-              Password
-            </label>
-            <div className="relative">
-              <span className="absolute left-3.5 top-3 text-muted-foreground">
-                <Lock className="w-4.5 h-4.5" />
-              </span>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="••••••••"
-                className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-              />
+          {(isSignUp || !isMagicLink) && (
+            <div className="space-y-1.5">
+              <label className="text-2sm font-semibold tracking-wide" htmlFor="password">
+                Password
+              </label>
+              <div className="relative">
+                <span className="absolute left-3.5 top-3 text-muted-foreground">
+                  <Lock className="w-4.5 h-4.5" />
+                </span>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="••••••••"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Submit button */}
           <button
@@ -150,8 +187,25 @@ export function Login() {
             disabled={loading}
             className="w-full py-2.5 mt-2 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 transition-all cursor-pointer"
           >
-            {loading ? 'Authenticating...' : isSignUp ? 'Create Account' : 'Sign In'}
+            {loading ? 'Authenticating...' : isSignUp ? 'Create Account' : isMagicLink ? 'Send Magic Link' : 'Sign In'}
           </button>
+
+          {/* Magic Link toggle */}
+          {!isSignUp && (
+            <div className="text-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMagicLink((prev) => !prev);
+                  setError('');
+                  setSuccessMsg('');
+                }}
+                className="text-2xs font-semibold text-primary hover:underline cursor-pointer"
+              >
+                {isMagicLink ? 'Sign in with email and password' : 'Sign in with a passwordless Magic Link'}
+              </button>
+            </div>
+          )}
         </form>
 
         <div className="relative flex py-2 items-center text-2xs uppercase text-muted-foreground">
@@ -163,16 +217,18 @@ export function Login() {
         {/* Social Buttons */}
         <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => alert('Mock OAuth: Google auth coming soon.')}
-            className="px-4 py-2.5 rounded-xl border border-border bg-input hover:bg-border/20 text-2sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="px-4 py-2.5 rounded-xl border border-border bg-input hover:bg-border/20 text-2sm font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             <span className="font-bold text-red-500">G</span> Google
           </button>
           <button
-            onClick={() => alert('Mock OAuth: GitHub auth coming soon.')}
-            className="px-4 py-2.5 rounded-xl border border-border bg-input hover:bg-border/20 text-2sm font-semibold flex items-center justify-center gap-2 cursor-pointer"
+            onClick={handleMicrosoftSignIn}
+            disabled={loading}
+            className="px-4 py-2.5 rounded-xl border border-border bg-input hover:bg-border/20 text-2sm font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <span className="font-bold text-accent">G</span> GitHub
+            <span className="font-bold text-blue-500">M</span> Microsoft
           </button>
         </div>
 
@@ -182,6 +238,7 @@ export function Login() {
           <button
             onClick={() => {
               setIsSignUp((prev) => !prev);
+              setIsMagicLink(false);
               setError('');
               setSuccessMsg('');
             }}

@@ -43,16 +43,73 @@ export const eventsApi = {
   },
 
   /**
-   * List scheduled or active events.
+   * List events with pagination, custom sorting (Active/Scheduled first, then start time DESC),
+   * and specific column selection.
    */
-  async list() {
-    const { data, error } = await supabase
-      .from(TABLES.EVENTS)
-      .select('*')
-      .order('scheduled_start_time', { ascending: true });
+  async list(limit: number = 12, offset: number = 0, userId?: string | null): Promise<EventRow[]> {
+    const cols = 'id, event_name, status, slug, scheduled_start_time, select_count, created_by';
 
-    if (error) throw error;
-    return data || [];
+    // 1. Fetch active and scheduled events (always needed to determine custom sort order/offset logic)
+    let activeQuery = supabase
+      .from(TABLES.EVENTS)
+      .select(cols)
+      .in('status', ['active', 'scheduled']);
+
+    if (userId) {
+      activeQuery = activeQuery.eq('created_by', userId);
+    }
+
+    const { data: activeScheduled, error: activeErr } = await activeQuery
+      .order('scheduled_start_time', { ascending: false });
+
+    if (activeErr) throw activeErr;
+
+    const activeCount = activeScheduled?.length || 0;
+
+    // Determine how many completed events we need and at what offset
+    let completedLimit = limit;
+    let completedOffset = 0;
+
+    if (offset < activeCount) {
+      // The requested range overlaps with the active/scheduled events
+      const activeInPageCount = activeCount - offset;
+      if (activeInPageCount >= limit) {
+        // The entire page can be satisfied by active/scheduled events
+        return activeScheduled.slice(offset, offset + limit) as EventRow[];
+      } else {
+        // Part of the page is active/scheduled, part is completed
+        completedLimit = limit - activeInPageCount;
+        completedOffset = 0;
+      }
+    } else {
+      // The requested range is entirely in the completed events
+      completedLimit = limit;
+      completedOffset = offset - activeCount;
+    }
+
+    // Query completed events
+    let completedQuery = supabase
+      .from(TABLES.EVENTS)
+      .select(cols)
+      .eq('status', 'completed');
+
+    if (userId) {
+      completedQuery = completedQuery.eq('created_by', userId);
+    }
+
+    const { data: completed, error: completedErr } = await completedQuery
+      .order('scheduled_start_time', { ascending: false })
+      .range(completedOffset, completedOffset + completedLimit - 1);
+
+    if (completedErr) throw completedErr;
+
+    // Combine active/scheduled and completed
+    if (offset < activeCount) {
+      const activeSlice = activeScheduled.slice(offset);
+      return [...activeSlice, ...(completed || [])] as EventRow[];
+    } else {
+      return (completed || []) as EventRow[];
+    }
   },
 
   /**
