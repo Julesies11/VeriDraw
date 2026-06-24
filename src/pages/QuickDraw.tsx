@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Play, RefreshCw, Trophy, Sparkles, Upload, FileText, List, Save, Info, Copy } from 'lucide-react';
+import { ArrowLeft, Play, Trophy, Sparkles, Upload, List, Save, Copy } from 'lucide-react';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import confetti from 'canvas-confetti';
 import { eventsApi } from '@/api/events';
+import { getFriendlyErrorMessage } from '@/lib/error-helpers';
 
 function generateSecureCode(length: number): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -146,7 +147,7 @@ export function QuickDraw() {
             finalItems.map((item) => ({
               item_value: item.item_value,
               is_selected: item.is_selected,
-              selection_order: item.selection_order,
+              selection_order: item.selection_order ?? undefined,
             })),
             duplicatedFromSlug
           )
@@ -160,11 +161,12 @@ export function QuickDraw() {
           });
       }
     }, spinDuration);
-  }, [isSpinning, activeItems, selectCount, items, rotationAngle, spinDuration]);
+  }, [isSpinning, activeItems, selectCount, items, rotationAngle, spinDuration, duplicatedFromSlug]);
 
   // Parse itemsText into items array
-  useEffect(() => {
-    const lines = itemsText
+  const updateItemsFromText = (text: string) => {
+    setItemsText(text);
+    const lines = text
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
@@ -175,7 +177,7 @@ export function QuickDraw() {
       is_selected: false,
     }));
     setItems(newItems);
-  }, [itemsText]);
+  };
 
   // Auto spin loop for multi-draw target count
   useEffect(() => {
@@ -213,7 +215,7 @@ export function QuickDraw() {
         .map((line) => line.trim())
         .filter((line) => line.length > 0);
       
-      setItemsText(parsedItems.join('\n'));
+      updateItemsFromText(parsedItems.join('\n'));
     };
     reader.readAsText(file);
   };
@@ -302,9 +304,9 @@ export function QuickDraw() {
         );
         navigate(ROUTES.LOGIN);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Failed to create live event.');
+      setError(getFriendlyErrorMessage(err, 'Failed to create live event.'));
     } finally {
       setLoading(false);
     }

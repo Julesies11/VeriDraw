@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useProfile } from '@/hooks/useProfile';
 import { ROUTES } from '@/config/routes.config';
 import { LogOut, Sparkles, User as UserIcon } from 'lucide-react';
 
@@ -10,8 +11,10 @@ interface MainLayoutProps {
 
 export function MainLayout({ children }: MainLayoutProps) {
   const { user, logout } = useAuth();
+  const { profile } = useProfile();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+  const location = useLocation();
+  const [theme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('theme');
       if (stored === 'light' || stored === 'dark') return stored;
@@ -19,6 +22,14 @@ export function MainLayout({ children }: MainLayoutProps) {
     }
     return 'dark';
   });
+  const [avatarError, setAvatarError] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAvatarError(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [profile?.avatar_url]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -57,14 +68,29 @@ export function MainLayout({ children }: MainLayoutProps) {
 
             {user ? (
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary border border-border/20">
-                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-primary text-xs font-bold">
-                    {user.email?.[0].toUpperCase() || <UserIcon className="w-3 h-3" />}
+                <Link
+                  to={ROUTES.PROFILE}
+                  state={{ from: location.pathname }}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary hover:bg-secondary/80 border border-border/20 transition-all cursor-pointer group/user"
+                >
+                  <div className="w-6 h-6 rounded-full overflow-hidden bg-primary/20 flex items-center justify-center text-primary text-xs font-bold border border-border/10 relative">
+                    {profile?.avatar_url && !avatarError ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt="Profile Avatar"
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarError(true)}
+                      />
+                    ) : (
+                      <span className="group-hover/user:scale-105 transition-transform absolute inset-0 flex items-center justify-center">
+                        {profile?.display_name?.[0].toUpperCase() || user.email?.[0].toUpperCase() || <UserIcon className="w-3 h-3" />}
+                      </span>
+                    )}
                   </div>
-                  <span className="text-2sm font-medium hidden sm:inline text-secondary-foreground">
-                    {user.user_metadata?.display_name || user.email?.split('@')[0]}
+                  <span className="text-2sm font-medium hidden sm:inline text-secondary-foreground group-hover/user:text-primary transition-colors">
+                    {profile?.display_name || user.email?.split('@')[0]}
                   </span>
-                </div>
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="p-2.5 rounded-xl hover:bg-destructive/10 border border-border/40 text-muted-foreground hover:text-destructive transition-all cursor-pointer"

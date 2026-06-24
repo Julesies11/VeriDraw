@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { drawApi, type EventSessionRow } from '@/api/draw';
 import { eventsApi, type EventItemRow, type EventRow } from '@/api/events';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
 interface DrawSessionHookProps {
   slugOrId: string;
@@ -16,10 +17,10 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
   const [session, setSession] = useState<EventSessionRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewerCount, setViewerCount] = useState(1);
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   // Load initial data
-  const loadInitialData = async () => {
+  const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
       const eventData = await eventsApi.getBySlugOrId(slugOrId);
@@ -43,11 +44,14 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
     } finally {
       setLoading(false);
     }
-  };
+  }, [slugOrId]);
 
   useEffect(() => {
-    loadInitialData();
-  }, [slugOrId]);
+    const timer = setTimeout(() => {
+      loadInitialData();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadInitialData]);
 
   // Subscribe to real-time updates and broadcast channel
   useEffect(() => {
@@ -65,7 +69,7 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
     channelRef.current = channel;
 
     // 2. Listen to Broadcast "spin" events for animation sync
-    channel.on('broadcast', { event: 'spin' }, (payload: any) => {
+    channel.on('broadcast', { event: 'spin' }, (payload: { payload: { targetAngle: number; durationMs: number; winnerId: string } }) => {
       const { targetAngle, durationMs, winnerId } = payload.payload;
       console.log('[Realtime] Broadcast spin event received:', payload);
       if (onSpinTriggered) {
@@ -82,7 +86,7 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
     });
 
     // Listen to Broadcast "reaction" event for floaty reaction sync
-    channel.on('broadcast', { event: 'reaction' }, (payload: any) => {
+    channel.on('broadcast', { event: 'reaction' }, (payload: { payload: { type: string } }) => {
       const { type } = payload.payload;
       console.log('[Realtime] Broadcast reaction received:', type);
       if (onReactionReceived) {
@@ -171,7 +175,7 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
     return () => {
       channel.unsubscribe();
     };
-  }, [event?.id, onSpinTriggered]);
+  }, [event?.id, onSpinTriggered, onSpinStarted, onReactionReceived]);
 
   /**
    * Broadcasts the spin details to all connected room viewers.

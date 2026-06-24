@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
 
 interface RouletteWheelProps {
   items: Array<{ id: string; item_value: string; is_selected: boolean }>;
@@ -22,7 +22,7 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
   // Web Audio Context synthetic click generator for tactile tick feedback
   const playTickSound = useCallback(() => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       const osc = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
 
@@ -38,7 +38,7 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
 
       osc.start();
       osc.stop(audioCtx.currentTime + 0.04);
-    } catch (e) {
+    } catch {
       // Browser autoplay policy might block audio before interaction
     }
   }, []);

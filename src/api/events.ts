@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { TABLES } from '@/config/db-tables';
 import type { Database } from '@/models/database.types';
+import type { PostgrestError } from '@supabase/supabase-js';
 
 export type EventInsert = Database['public']['Tables']['vd_events']['Insert'];
 export type EventUpdate = Database['public']['Tables']['vd_events']['Update'];
@@ -17,8 +18,8 @@ function slugify(text: string): string {
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '-')           // Replace spaces with -
-    .replace(/[^\w\-]+/g, '')       // Remove all non-word chars
-    .replace(/\-\-+/g, '-')         // Replace multiple - with single -
+    .replace(/[^\w-]+/g, '')        // Remove all non-word chars
+    .replace(/--+/g, '-')           // Replace multiple - with single -
     .replace(/^-+/, '')             // Trim - from start of text
     .replace(/-+$/, '');            // Trim - from end of text
 }
@@ -36,7 +37,7 @@ export const eventsApi = {
   /**
    * Sanitizes payloads to avoid system column update errors.
    */
-  sanitizeRecord(record: any) {
+  sanitizeRecord(record: Record<string, unknown>) {
     const sanitized = { ...record };
     const systemFields = ['created_at', 'updated_at', 'created_by', 'updated_by'];
     systemFields.forEach((key) => delete sanitized[key]);
@@ -68,8 +69,8 @@ export const eventsApi = {
     const activeCount = activeScheduled?.length || 0;
 
     // Determine how many completed events we need and at what offset
-    let completedLimit = limit;
-    let completedOffset = 0;
+    let completedLimit: number;
+    let completedOffset: number;
 
     if (offset < activeCount) {
       // The requested range overlaps with the active/scheduled events
@@ -140,20 +141,20 @@ export const eventsApi = {
         .maybeSingle();
 
       if (error) throw error;
-      return data as any;
+      return data as EventRow;
     }
 
     const cleanCode = slugOrId.trim();
 
     // 1. Try exact slug match (case-insensitive)
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from(TABLES.EVENTS)
       .select('*, parent:vd_events!duplicated_from(slug)')
       .ilike('slug', cleanCode)
       .maybeSingle();
 
     if (error) throw error;
-    if (data) return data as any;
+    if (data) return data as EventRow;
 
     // 2. Try suffix match (case-insensitive, e.g. "a1b2c3" matching "my-event-a1b2c3")
     const { data: suffixData, error: suffixError } = await supabase
@@ -163,7 +164,7 @@ export const eventsApi = {
       .maybeSingle();
 
     if (suffixError) throw suffixError;
-    return suffixData as any;
+    return suffixData as EventRow;
   },
 
   /**
@@ -195,14 +196,10 @@ export const eventsApi = {
 
     // Sanitize payload first, then add back tracking keys and slug
     const sanitizedEvent = {
-      ...this.sanitizeRecord(eventPayload),
+      ...this.sanitizeRecord(eventPayload as unknown as Record<string, unknown>),
       slug: generatedSlug,
-    };
-
-    if (creatorId) {
-      sanitizedEvent.created_by = creatorId;
-      sanitizedEvent.updated_by = creatorId;
-    }
+      ...(creatorId ? { created_by: creatorId, updated_by: creatorId } : {}),
+    } as unknown as EventInsert;
 
     // 2. Insert event
     const { data: event, error: eventError } = await supabase
@@ -281,7 +278,7 @@ export const eventsApi = {
 
     let slug = preferredSlug;
     let attempts = 0;
-    let lastError: any = null;
+    let lastError: PostgrestError | null = null;
 
     while (attempts < 5) {
       // 3. Insert event

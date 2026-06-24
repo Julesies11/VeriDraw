@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
 import { Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
+import { getFriendlyErrorMessage } from '@/lib/error-helpers';
 
 export function Login() {
   const {
@@ -26,20 +27,6 @@ export function Login() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const getFriendlyErrorMessage = (err: any, defaultMsg: string): string => {
-    if (!err) return defaultMsg;
-    const msg = typeof err === 'string'
-      ? err
-      : (err && typeof err === 'object' && 'message' in err ? String(err.message) : '');
-
-    if (msg.includes('provider is not enabled') || msg.includes('Unsupported provider')) {
-      if (import.meta.env.DEV) {
-        return 'This login provider is not enabled in your Supabase dashboard. Please enable it under Authentication > Providers in the Supabase console.';
-      }
-      return 'This login provider is currently unavailable. Please sign in with email/password or contact support.';
-    }
-    return msg || defaultMsg;
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -52,7 +39,7 @@ export function Login() {
     setLoading(true);
     try {
       await signInWithGoogle();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Google sign-in failed.'));
       setLoading(false);
@@ -65,7 +52,7 @@ export function Login() {
     setLoading(true);
     try {
       await signInWithMicrosoft();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Microsoft sign-in failed.'));
       setLoading(false);
@@ -93,7 +80,7 @@ export function Login() {
         await login(formData.email, formData.password);
         navigate(ROUTES.DASHBOARD);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Authentication failed. Please verify credentials.'));
     } finally {

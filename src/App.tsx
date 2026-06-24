@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { AuthProvider } from '@/auth/providers/supabase-provider';
@@ -8,6 +7,7 @@ import { CreateEvent } from '@/pages/CreateEvent';
 import { DrawRoom } from '@/pages/DrawRoom';
 import { QuickDraw } from '@/pages/QuickDraw';
 import { Login } from '@/pages/Login';
+import { Profile } from '@/pages/Profile';
 import { ROUTES } from '@/config/routes.config';
 
 export function App() {
@@ -25,6 +25,9 @@ export function App() {
 
               {/* Login Room */}
               <Route path={ROUTES.LOGIN} element={<Login />} />
+
+              {/* Profile Settings */}
+              <Route path={ROUTES.PROFILE} element={<Profile />} />
 
               {/* Create Drawing event */}
               <Route path={ROUTES.CREATE_EVENT} element={<CreateEvent />} />

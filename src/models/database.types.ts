@@ -1322,96 +1322,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ic_funding_sources_master: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          funding_source_name: string
-          id: string
-          is_active: boolean | null
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          funding_source_name: string
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          funding_source_name?: string
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_ic_funding_sources_master_created_by"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "ic_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_ic_funding_sources_master_updated_by"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "ic_staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ic_funding_types_master: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          funding_type_name: string
-          id: string
-          is_active: boolean | null
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          funding_type_name: string
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          funding_type_name?: string
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_ic_funding_types_master_created_by"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "ic_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_ic_funding_types_master_updated_by"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "ic_staff"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ic_house_calendar_event_attachments: {
         Row: {
           created_at: string | null
@@ -2601,7 +2511,6 @@ export type Database = {
       }
       ic_house_resources: {
         Row: {
-          address: string | null
           category: string
           created_at: string | null
           created_by: string | null
@@ -2613,15 +2522,12 @@ export type Database = {
           id: string
           is_active: boolean | null
           notes: string | null
-          phone: string | null
-          priority: string | null
           title: string
           type: string
           updated_at: string | null
           updated_by: string | null
         }
         Insert: {
-          address?: string | null
           category: string
           created_at?: string | null
           created_by?: string | null
@@ -2633,15 +2539,12 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           notes?: string | null
-          phone?: string | null
-          priority?: string | null
           title: string
           type: string
           updated_at?: string | null
           updated_by?: string | null
         }
         Update: {
-          address?: string | null
           category?: string
           created_at?: string | null
           created_by?: string | null
@@ -2653,8 +2556,6 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           notes?: string | null
-          phone?: string | null
-          priority?: string | null
           title?: string
           type?: string
           updated_at?: string | null
@@ -3983,6 +3884,7 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean | null
+          is_emergency_contact: boolean
           notes: string | null
           participant_id: string
           phone: string | null
@@ -3998,6 +3900,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean | null
+          is_emergency_contact?: boolean
           notes?: string | null
           participant_id: string
           phone?: string | null
@@ -4013,6 +3916,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean | null
+          is_emergency_contact?: boolean
           notes?: string | null
           participant_id?: string
           phone?: string | null
@@ -4244,109 +4148,6 @@ export type Database = {
           },
         ]
       }
-      ic_participant_funding: {
-        Row: {
-          allocated_amount: number
-          code: string | null
-          created_at: string | null
-          created_by: string | null
-          end_date: string | null
-          funding_source_id: string | null
-          funding_type_id: string | null
-          house_id: string | null
-          id: string
-          invoice_recipient: string | null
-          notes: string | null
-          participant_id: string
-          remaining_amount: number | null
-          status: string | null
-          updated_at: string | null
-          updated_by: string | null
-          used_amount: number | null
-        }
-        Insert: {
-          allocated_amount: number
-          code?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          end_date?: string | null
-          funding_source_id?: string | null
-          funding_type_id?: string | null
-          house_id?: string | null
-          id?: string
-          invoice_recipient?: string | null
-          notes?: string | null
-          participant_id: string
-          remaining_amount?: number | null
-          status?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-          used_amount?: number | null
-        }
-        Update: {
-          allocated_amount?: number
-          code?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          end_date?: string | null
-          funding_source_id?: string | null
-          funding_type_id?: string | null
-          house_id?: string | null
-          id?: string
-          invoice_recipient?: string | null
-          notes?: string | null
-          participant_id?: string
-          remaining_amount?: number | null
-          status?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-          used_amount?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "fk_ic_participant_funding_created_by"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "ic_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_ic_participant_funding_updated_by"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "ic_staff"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "participant_funding_funding_source_id_fkey"
-            columns: ["funding_source_id"]
-            isOneToOne: false
-            referencedRelation: "ic_funding_sources_master"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "participant_funding_funding_type_id_fkey"
-            columns: ["funding_type_id"]
-            isOneToOne: false
-            referencedRelation: "ic_funding_types_master"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "participant_funding_house_id_fkey"
-            columns: ["house_id"]
-            isOneToOne: false
-            referencedRelation: "ic_houses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "participant_funding_participant_id_fkey"
-            columns: ["participant_id"]
-            isOneToOne: false
-            referencedRelation: "ic_participants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ic_participant_goal_progress: {
         Row: {
           created_at: string | null
@@ -4537,6 +4338,7 @@ export type Database = {
           dosage: string | null
           id: string
           is_active: boolean | null
+          is_prn: boolean
           medication_id: string | null
           participant_id: string
           updated_at: string | null
@@ -4548,6 +4350,7 @@ export type Database = {
           dosage?: string | null
           id?: string
           is_active?: boolean | null
+          is_prn?: boolean
           medication_id?: string | null
           participant_id: string
           updated_at?: string | null
@@ -4559,6 +4362,7 @@ export type Database = {
           dosage?: string | null
           id?: string
           is_active?: boolean | null
+          is_prn?: boolean
           medication_id?: string | null
           participant_id?: string
           updated_at?: string | null
@@ -6697,6 +6501,68 @@ export type Database = {
             columns: ["role_id"]
             isOneToOne: false
             referencedRelation: "ic_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ic_staff_availability: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          day_of_week: number | null
+          end_date: string | null
+          end_time: string
+          id: string
+          is_active: boolean
+          is_available: boolean
+          notes: string | null
+          staff_id: string
+          start_date: string | null
+          start_time: string
+          type: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          day_of_week?: number | null
+          end_date?: string | null
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          is_available?: boolean
+          notes?: string | null
+          staff_id: string
+          start_date?: string | null
+          start_time?: string
+          type: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          day_of_week?: number | null
+          end_date?: string | null
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          is_available?: boolean
+          notes?: string | null
+          staff_id?: string
+          start_date?: string | null
+          start_time?: string
+          type?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ic_staff_availability_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "ic_staff"
             referencedColumns: ["id"]
           },
         ]
@@ -9445,6 +9311,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vd_profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

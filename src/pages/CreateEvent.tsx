@@ -3,7 +3,21 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { eventsApi } from '@/api/events';
 import { useDirtyTracker } from '@/hooks/useDirtyTracker';
 import { ROUTES } from '@/config/routes.config';
+import { getFriendlyErrorMessage } from '@/lib/error-helpers';
 import { ArrowLeft, Save, List, Upload, Settings, FileText, ChevronDown, ChevronUp, Info } from 'lucide-react';
+
+interface CreateEventFormData {
+  name: string;
+  description: string;
+  scheduled_start_time: string;
+  item_type: string;
+  select_count: number | '';
+  itemsText: string;
+  allow_repeats: boolean;
+  enable_public_link: boolean;
+  require_viewer_login: boolean;
+  enable_verifiable_seed: boolean;
+}
 
 export function CreateEvent() {
   const navigate = useNavigate();
@@ -16,7 +30,7 @@ export function CreateEvent() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Form states
-  const [formData, setFormData] = useState<any>({
+  const [formData, setFormData] = useState<CreateEventFormData>({
     name: '',
     description: '',
     scheduled_start_time: '', // empty by default so the user must select a time
@@ -29,7 +43,7 @@ export function CreateEvent() {
     enable_verifiable_seed: true,
   });
 
-  const originalData = {
+  const originalData: CreateEventFormData = {
     name: '',
     description: '',
     scheduled_start_time: '',
@@ -56,32 +70,45 @@ export function CreateEvent() {
   };
 
   useEffect(() => {
-    const state = location.state as any;
+    const state = location.state as {
+      duplicateFrom?: {
+        id: string;
+        name: string;
+        description?: string;
+        item_type?: string;
+        select_count?: number;
+      };
+      items?: string[];
+    } | null;
+
     if (state && state.duplicateFrom) {
       const { id, name, description, item_type, select_count } = state.duplicateFrom;
       const items = state.items || [];
-      setFormData((prev: any) => ({
-        ...prev,
-        name: `${name} (Copy)`,
-        description: description || '',
-        scheduled_start_time: formatLocalDatetime(new Date()),
-        item_type: item_type || 'custom',
-        select_count: select_count || 1,
-        itemsText: items.join('\n'),
-      }));
-      setDuplicatedFromId(id);
+      const timer = setTimeout(() => {
+        setFormData((prev) => ({
+          ...prev,
+          name: `${name} (Copy)`,
+          description: description || '',
+          scheduled_start_time: formatLocalDatetime(new Date()),
+          item_type: item_type || 'custom',
+          select_count: select_count || 1,
+          itemsText: items.join('\n'),
+        }));
+        setDuplicatedFromId(id);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [location.state]);
 
   const { isDirty } = useDirtyTracker({ formData, originalData });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target as any;
-    const val = type === 'checkbox' ? (e.target as any).checked : value;
+    const { name, value, type } = e.target;
+    const val = e.target instanceof HTMLInputElement && type === 'checkbox' ? e.target.checked : value;
     setFormData((prev) => ({
       ...prev,
       [name]: name === 'select_count' ? (value === '' ? '' : parseInt(value) || 0) : val,
-    }));
+    } as unknown as CreateEventFormData));
   };
 
   const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,7 +184,6 @@ export function CreateEvent() {
           scheduled_start_time: new Date(formData.scheduled_start_time).toISOString(),
           item_type: formData.item_type,
           select_count: selectCountNum,
-          description: formData.description,
           duplicated_from: duplicatedFromId,
         },
         itemLines
@@ -171,9 +197,9 @@ export function CreateEvent() {
       }
 
       navigate(ROUTES.DRAW_ROOM(newEvent.slug));
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Failed to create drawing event.');
+      setError(getFriendlyErrorMessage(err, 'Failed to create drawing event.'));
     } finally {
       setLoading(false);
     }
@@ -189,9 +215,9 @@ export function CreateEvent() {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold font-heading">Configure Selection Event</h1>
+          <h1 className="text-2xl font-bold font-heading">Create Live Event</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Prepare the seed, invite parameters, and candidate roster.
+            Create a scheduled draw, invite spectators, and select winners in real time.
           </p>
         </div>
       </div>
@@ -207,7 +233,7 @@ export function CreateEvent() {
         <div className="p-6 glass border border-border/40 rounded-2xl space-y-5">
           <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2 border-b border-border/20 pb-2.5">
             <Settings className="w-4.5 h-4.5" />
-            1. Event Parameters
+            1. Event Details
           </h2>
 
           {/* Event Name */}
@@ -229,9 +255,17 @@ export function CreateEvent() {
 
           {/* Start Time */}
           <div className="space-y-1.5">
-            <label className="text-2sm font-semibold tracking-wide" htmlFor="scheduled_start_time">
-              Start Time *
-            </label>
+            <div className="flex items-center gap-2">
+              <label className="text-2sm font-semibold tracking-wide" htmlFor="scheduled_start_time">
+                When should the draw begin? *
+              </label>
+              <div className="relative group shrink-0">
+                <Info className="w-4 h-4 text-muted-foreground/75 hover:text-foreground transition-colors cursor-help" />
+                <div className="absolute right-0 bottom-full mb-2 w-72 p-3 bg-popover text-popover-foreground text-2xs rounded-xl border border-border/80 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 leading-normal font-normal">
+                  Spectators can join the event before the scheduled draw time. A countdown will be displayed until the draw begins.
+                </div>
+              </div>
+            </div>
             <input
               id="scheduled_start_time"
               name="scheduled_start_time"
@@ -247,7 +281,7 @@ export function CreateEvent() {
           {/* Target Count */}
           <div className="space-y-1.5">
             <label className="text-2sm font-semibold tracking-wide" htmlFor="select_count">
-              Selections Count (Winners) *
+              Number of Winners *
             </label>
             <input
               id="select_count"
@@ -277,13 +311,14 @@ export function CreateEvent() {
                 <div className="flex items-center justify-between gap-4">
                   <label className="flex items-center gap-2.5 text-2sm font-semibold select-none cursor-pointer">
                     <input
-                      type="checkbox"
-                      name="enable_public_link"
-                      checked={formData.enable_public_link}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-border text-primary focus:ring-ring"
+                      type="radio"
+                      name="visibility"
+                      value="public"
+                      checked={!formData.require_viewer_login}
+                      onChange={() => setFormData((prev: any) => ({ ...prev, require_viewer_login: false, enable_public_link: true }))}
+                      className="w-4 h-4 border-border text-primary focus:ring-ring"
                     />
-                    <span>Public: Enable public viewing link</span>
+                    <span>Public — anyone with the link can watch</span>
                   </label>
                   <div className="relative group shrink-0">
                     <Info className="w-4 h-4 text-muted-foreground/75 hover:text-foreground transition-colors cursor-help" />
@@ -296,18 +331,19 @@ export function CreateEvent() {
                 <div className="flex items-center justify-between gap-4">
                   <label className="flex items-center gap-2.5 text-2sm font-semibold select-none cursor-pointer">
                     <input
-                      type="checkbox"
-                      name="require_viewer_login"
+                      type="radio"
+                      name="visibility"
+                      value="private"
                       checked={formData.require_viewer_login}
-                      onChange={handleChange}
-                      className="w-4 h-4 rounded border-border text-primary focus:ring-ring"
+                      onChange={() => setFormData((prev: any) => ({ ...prev, require_viewer_login: true, enable_public_link: false }))}
+                      className="w-4 h-4 border-border text-primary focus:ring-ring"
                     />
-                    <span>Private: Require login to watch</span>
+                    <span>Private — viewers must be signed in to watch</span>
                   </label>
                   <div className="relative group shrink-0">
                     <Info className="w-4 h-4 text-muted-foreground/75 hover:text-foreground transition-colors cursor-help" />
                     <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-popover text-popover-foreground text-2xs rounded-xl border border-border/80 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 leading-normal font-normal">
-                      Restricts access to the drawing room to logged-in users only.
+                      Restricts access to the drawing room to signed-in users only.
                     </div>
                   </div>
                 </div>
@@ -321,7 +357,7 @@ export function CreateEvent() {
           <div className="flex items-center justify-between border-b border-border/20 pb-2.5">
             <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2">
               <List className="w-4.5 h-4.5" />
-              2. Candidate Entries
+              2. Entries
             </h2>
 
             <span className="text-2xs px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold">
@@ -355,7 +391,7 @@ export function CreateEvent() {
           {activeTab === 'paste' && (
             <div className="space-y-1.5">
               <label className="text-2sm font-semibold text-muted-foreground">
-                Paste names or text values (one per line)
+                Paste entries (one per line)
               </label>
               <textarea
                 name="itemsText"

@@ -1,5 +1,5 @@
-import React, { PropsWithChildren, useCallback, useEffect, useRef, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
+import { useCallback, useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import type { User, Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { AuthContext } from '../context/auth-context';
@@ -11,7 +11,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const authInitialized = useRef(false);
 
   const handleAuthStateChange = useCallback(
-    async (event: string, session: any) => {
+    async (event: string, session: Session | null) => {
       console.log(`[Auth] Event: ${event}`);
       if (session?.user) {
         setUser(session.user);

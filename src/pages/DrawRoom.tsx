@@ -1,17 +1,17 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useDrawSession } from '@/hooks/useDrawSession';
 import { drawApi } from '@/api/draw';
-import { eventsApi } from '@/api/events';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Users, CheckCircle, RefreshCw, Trophy, Play, Info, Copy, Download, Calendar, ShieldCheck, FileText, List, Sparkles, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, RefreshCw, Trophy, Play, Info, Copy, Download, Calendar, List, Sparkles, Share2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { getFriendlyErrorMessage } from '@/lib/error-helpers';
 
 export function DrawRoom() {
   const { slugOrId } = useParams<{ slugOrId: string }>();
-  const { user } = useAuth();
+  const { user, loading: loadingAuth } = useAuth();
   const navigate = useNavigate();
 
   // Local state for resets
@@ -20,23 +20,29 @@ export function DrawRoom() {
   const [rotationAngle, setRotationAngle] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinDuration, setSpinDuration] = useState(4000);
-  const [localWinner, setLocalWinner] = useState<any>(null);
+  const [localWinner, setLocalWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [isActivating, setIsActivating] = useState(false);
+  const [timerReady, setTimerReady] = useState(false);
   const [preSpinSelectedIds, setPreSpinSelectedIds] = useState<Set<string>>(new Set());
   
   // Auditable reactions overlay state
   const [floatingReactions, setFloatingReactions] = useState<Array<{ id: number; type: string; x: number }>>([]);
-  const [verificationChecked, setVerificationChecked] = useState(false);
 
   // Sharing states
   const [showShareModal, setShowShareModal] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const itemsRef = useRef<any[]>([]);
-  const dismissTimeoutRef = useRef<any>(null);
-  const transitionTimeoutRef = useRef<any>(null);
+  const itemsRef = useRef<Array<{ id: string; item_value: string; is_selected: boolean; selection_order?: number | null; selected_at?: string | null }>>([]);
+  const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stable refs for reading latest event/items inside async callbacks
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const eventRef = useRef<any>(null);
+  // Called after every winner dismiss — kept current via a useEffect below
+  const afterDismissRef = useRef<() => void>(() => {});
 
   // Trigger floating reaction animation locally
   const triggerLocalReaction = useCallback((type: string) => {
@@ -72,6 +78,8 @@ export function DrawRoom() {
       transitionTimeoutRef.current = setTimeout(() => {
         setPreSpinSelectedIds(new Set());
         transitionTimeoutRef.current = null;
+        // Trigger auto-continue (next spin or event completion) after wheel is fully reset
+        afterDismissRef.current();
       }, 500);
 
       return false;
@@ -175,11 +183,21 @@ export function DrawRoom() {
     itemsRef.current = items;
   }, [items]);
 
+  // Sync event ref for stable access inside auto-continue callbacks
+  useEffect(() => {
+    eventRef.current = event;
+  }, [event]);
+
   // Calculate and update the countdown timer
   useEffect(() => {
+    setTimerReady(false);
+
     if (!event || event.status !== 'scheduled') {
-      setTimeLeft(0);
-      return;
+      const timer = setTimeout(() => {
+        setTimeLeft(0);
+        setTimerReady(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     const calculateTimeLeft = () => {
@@ -187,7 +205,10 @@ export function DrawRoom() {
       return Math.max(0, Math.floor(difference / 1000));
     };
 
-    setTimeLeft(calculateTimeLeft());
+    const timer = setTimeout(() => {
+      setTimeLeft(calculateTimeLeft());
+      setTimerReady(true);
+    }, 0);
 
     const interval = setInterval(() => {
       const remaining = calculateTimeLeft();
@@ -197,7 +218,10 @@ export function DrawRoom() {
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [event]);
 
   const formatCountdown = (seconds: number) => {
@@ -215,45 +239,19 @@ export function DrawRoom() {
     if (user && event && event.created_by === user.id) {
       return true;
     }
+    if (event) {
+      const ownedEvents = JSON.parse(localStorage.getItem('vd_owned_events') || '{}');
+      if (ownedEvents[event.id]) {
+        return true;
+      }
+    }
     return false;
   }, [user, event]);
 
   const hasAutoSpunRef = useRef(false);
 
-  // Auto-activate event when countdown hits 0 (Host only)
-  useEffect(() => {
-    if (!event || event.status !== 'scheduled' || !isHost || timeLeft > 0) return;
-
-    const activateEvent = async () => {
-      try {
-        await drawApi.updateEventStatus(event.id, 'active');
-        refetch();
-      } catch (e) {
-        console.error('Failed to auto-activate event:', e);
-      }
-    };
-
-    activateEvent();
-  }, [event?.status, isHost, timeLeft]);
-
-  // Auto-spin first round when event becomes active (Host only)
-  useEffect(() => {
-    if (loading || !event || event.status !== 'active' || !isHost || hasAutoSpunRef.current) return;
-
-    // Only auto-spin if no items have been selected yet (first round)
-    const alreadySelectedCount = items.filter(item => item.is_selected).length;
-    if (alreadySelectedCount > 0) return;
-
-    hasAutoSpunRef.current = true;
-    const timer = setTimeout(() => {
-      handleHostSpin();
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [event?.status, isHost, items, loading]);
-
   // Handle Host Spin Trigger
-  const handleHostSpin = async () => {
+  const handleHostSpin = useCallback(async () => {
     if (isSpinning || !eventId) return;
 
     try {
@@ -273,16 +271,75 @@ export function DrawRoom() {
       setTimeout(async () => {
         try {
           await drawApi.updateSessionStatus(eventId, 'landed', item.id);
-        } catch (e) {
-          console.error('[DB Update landed Error]', e);
+        } catch (err: unknown) {
+          console.error('[DB Update landed Error]', err);
         }
       }, spin_duration_ms);
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsSpinning(false);
-      alert(err.message || 'Failed to spin.');
+      alert(getFriendlyErrorMessage(err, 'Failed to spin.'));
     }
-  };
+  }, [eventId, isSpinning, handleLocalSpinStart, broadcastSpinStart, broadcastSpin, animateSpin]);
+
+  // Auto-activate event when countdown hits 0 (Host only)
+  useEffect(() => {
+    // timerReady guards the initial render where timeLeft=0 before the real countdown starts.
+    // Without this, the effect would fire immediately on page load before any seconds are counted.
+    if (!event || event.status !== 'scheduled' || !isHost || !timerReady || timeLeft > 0) return;
+
+    const activateEvent = async () => {
+      try {
+        setIsActivating(true);
+        await drawApi.updateEventStatus(event.id, 'active');
+        refetch();
+      } catch (err: unknown) {
+        console.error('Failed to auto-activate event:', err);
+        setIsActivating(false);
+      }
+    };
+
+    activateEvent();
+  }, [event, isHost, timeLeft, timerReady, refetch]);
+
+  // Auto-spin first round when event becomes active (Host only)
+  useEffect(() => {
+    if (loading || !event || event.status !== 'active' || !isHost || hasAutoSpunRef.current) return;
+
+    // Only auto-spin if no items have been selected yet (first round)
+    const alreadySelectedCount = items.filter(item => item.is_selected).length;
+    if (alreadySelectedCount > 0) return;
+
+    hasAutoSpunRef.current = true;
+    const timer = setTimeout(() => {
+      handleHostSpin();
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [event, isHost, items, loading, handleHostSpin]);
+
+  // Keep afterDismissRef current so handleDismissWinner always calls the latest auto-continue logic.
+  // This fires after every winner dismiss (once the wheel has fully reset).
+  useEffect(() => {
+    afterDismissRef.current = () => {
+      if (!isHost || !eventRef.current || eventRef.current.status !== 'active') return;
+
+      const currentItems = itemsRef.current;
+      const selectedCount = currentItems.filter((i: { is_selected: boolean }) => i.is_selected).length;
+      const totalNeeded = eventRef.current.select_count;
+      const hasRemaining = currentItems.some((i: { is_selected: boolean }) => !i.is_selected);
+
+      if (selectedCount >= totalNeeded || !hasRemaining) {
+        // All winners selected — mark event as completed
+        drawApi.updateEventStatus(eventRef.current.id, 'completed')
+          .then(() => refetch())
+          .catch((err: unknown) => console.error('Failed to complete event:', err));
+      } else {
+        // More winners needed — spin again immediately
+        handleHostSpin();
+      }
+    };
+  }, [isHost, handleHostSpin, refetch]);
 
   // Re-initialize a completely fresh live draw
   const handleCreateNewDraw = () => {
@@ -298,7 +355,7 @@ export function DrawRoom() {
         duplicateFrom: {
           id: event.id,
           name: event.event_name,
-          description: event.description,
+          description: '',
           item_type: event.item_type,
           select_count: event.select_count,
         },
@@ -326,11 +383,10 @@ export function DrawRoom() {
       setRotationAngle(0);
       setLocalWinner(null);
       setPreSpinSelectedIds(new Set());
-      setVerificationChecked(false);
       setShowWinnerBanner(false);
       refetch();
-    } catch (err: any) {
-      alert(err.message || 'Failed to reset.');
+    } catch (err: unknown) {
+      alert(getFriendlyErrorMessage(err, 'Failed to reset.'));
     }
   };
 
@@ -499,23 +555,9 @@ export function DrawRoom() {
     URL.revokeObjectURL(url);
   };
 
-  const verifyAuditSeed = () => {
-    setVerificationChecked(true);
-    confetti({
-      particleCount: 50,
-      angle: 60,
-      spread: 55,
-      origin: { x: 0 },
-    });
-    confetti({
-      particleCount: 50,
-      angle: 120,
-      spread: 55,
-      origin: { x: 1 },
-    });
-  };
 
-  if (loading) {
+
+  if (loading || loadingAuth) {
     return (
       <div className="flex flex-col items-center justify-center py-40 space-y-3">
         <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
@@ -682,7 +724,7 @@ export function DrawRoom() {
             <span>{viewerCount} watching</span>
           </div>
 
-          {event.status === 'completed' ? (
+          {event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
             <>
               <div className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-2sm font-bold uppercase">
                 Completed
@@ -712,13 +754,39 @@ export function DrawRoom() {
                 <h3 className="text-2sm font-extrabold tracking-widest uppercase text-muted-foreground">
                   Live Selection Commences In
                 </h3>
-                {timeLeft > 0 ? (
-                  <div className="text-5xl font-black font-mono tracking-wider text-primary select-none drop-shadow-[0_0_15px_rgba(30,96,145,0.25)]">
-                    {formatCountdown(timeLeft)}
+                {!timerReady ? (
+                  // Blank while the first real timeLeft value is being computed
+                  <div className="h-14" />
+                ) : timeLeft > 0 ? (
+                  <div className="space-y-2.5">
+                    <div className="text-5xl font-black font-mono tracking-wider text-primary select-none drop-shadow-[0_0_15px_rgba(30,96,145,0.25)]">
+                      {formatCountdown(timeLeft)}
+                    </div>
+                    <p className="text-2xs text-muted-foreground font-semibold flex items-center justify-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" />
+                      Scheduled to start: {new Date(event.scheduled_start_time).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })} ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                    </p>
+                  </div>
+                ) : isActivating ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+                    <span className="text-sm font-bold text-primary animate-pulse">Launching draw...</span>
                   </div>
                 ) : (
-                  <div className="text-sm font-semibold text-green-600 dark:text-green-400 flex items-center justify-center gap-1">
-                    <span>Draw is ready to commence!</span>
+                  <div className="space-y-2.5">
+                    <div className="text-sm font-semibold text-green-600 dark:text-green-400 flex items-center justify-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                      <span>Draw is ready to commence!</span>
+                    </div>
+                    <p className="text-2xs text-muted-foreground font-semibold">
+                      Scheduled start: {new Date(event.scheduled_start_time).toLocaleString(undefined, {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      })} ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                    </p>
                   </div>
                 )}
               </div>
@@ -775,8 +843,9 @@ export function DrawRoom() {
                     try {
                       await drawApi.updateEventStatus(event.id, 'active');
                       refetch();
-                    } catch (e) {
-                      alert('Failed to start draw.');
+                    } catch (err: unknown) {
+                      console.error(err);
+                      alert(getFriendlyErrorMessage(err, 'Failed to start draw.'));
                     }
                   }}
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-95 transition-all cursor-pointer"
@@ -815,7 +884,7 @@ export function DrawRoom() {
           <div className="glass border border-border/40 rounded-2xl p-5 space-y-4 flex flex-col justify-between min-h-[480px]">
             <div>
               <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
-                {event.status === 'completed' ? (
+                {event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
                   <>
                     <List className="w-4.5 h-4.5 text-primary" />
                     Entries Roster ({items.length})
@@ -828,7 +897,7 @@ export function DrawRoom() {
                 )}
               </h2>
               <div className="divide-y divide-border/20 max-h-[300px] overflow-y-auto pr-1">
-                {event.status === 'completed' ? (
+                {event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
                   items.map((item, idx) => (
                     <div key={item.id} className="py-2.5 flex items-center justify-between text-2sm animate-fade-in">
                       <span className="font-semibold">{item.item_value}</span>
@@ -1011,7 +1080,7 @@ export function DrawRoom() {
               <>
                 {/* Header Round Marker */}
                 <div className="absolute top-4 z-20 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-2xs font-bold uppercase tracking-wider">
-                  {event.status === 'completed'
+                  {event.status === 'completed' && !isSpinning && !showWinnerBanner
                     ? 'Drawing Concluded! 🏆'
                     : `Round ${Math.min(event.select_count, selectedItems.length + 1)} of ${event.select_count}`
                   }
@@ -1067,7 +1136,7 @@ export function DrawRoom() {
                     <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center">
                       <Info className="w-4 h-4 text-primary shrink-0" />
                       <span>
-                        Waiting for the Host to trigger the spin.
+                        Waiting for the draw to commence...
                       </span>
                     </div>
                   )}

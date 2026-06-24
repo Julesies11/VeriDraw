@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { eventsApi, type EventRow } from '@/api/events';
 import { ROUTES } from '@/config/routes.config';
-import { PlusCircle, Trash2, Calendar, Users, Eye, CheckCircle, Play, Trophy } from 'lucide-react';
+import { PlusCircle, Trash2, Calendar, Eye, CheckCircle, Play } from 'lucide-react';
+import { getFriendlyErrorMessage } from '@/lib/error-helpers';
 
 export function Dashboard() {
   const { user, loading: loadingAuth } = useAuth();
@@ -19,7 +20,7 @@ export function Dashboard() {
 
   const PAGE_SIZE = 12;
 
-  const loadEvents = async (currentOffset: number, append: boolean = false) => {
+  const loadEvents = useCallback(async (currentOffset: number, append: boolean = false) => {
     if (!user) {
       setEvents([]);
       setLoading(false);
@@ -45,16 +46,16 @@ export function Dashboard() {
       } else {
         setHasMore(true);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || 'Failed to load drawing events.');
+      setError(getFriendlyErrorMessage(err, 'Failed to load drawing events.'));
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [user]);
 
-  const loadTotalCount = async () => {
+  const loadTotalCount = useCallback(async () => {
     if (!user) {
       setTotalCount(null);
       return;
@@ -65,14 +66,17 @@ export function Dashboard() {
     } catch (err) {
       console.error('Failed to load total events count:', err);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (!loadingAuth) {
-      loadEvents(0, false);
-      loadTotalCount();
+      const timer = setTimeout(() => {
+        loadEvents(0, false);
+        loadTotalCount();
+      }, 0);
+      return () => clearTimeout(timer);
     }
-  }, [user, loadingAuth]);
+  }, [user, loadingAuth, loadEvents, loadTotalCount]);
 
   const handleLoadMore = () => {
     const nextOffset = offset + PAGE_SIZE;
@@ -120,8 +124,8 @@ export function Dashboard() {
       await eventsApi.delete(id);
       setEvents((prev) => prev.filter((event) => event.id !== id));
       setTotalCount((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete event.');
+    } catch (err: unknown) {
+      alert(getFriendlyErrorMessage(err, 'Failed to delete event.'));
     }
   };
 
@@ -358,7 +362,7 @@ export function Dashboard() {
                     completed: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
                   };
     
-                  const statusIcons: Record<string, any> = {
+                  const statusIcons: Record<string, React.ComponentType<{ className?: string }>> = {
                     scheduled: Calendar,
                     active: Play,
                     completed: CheckCircle,
@@ -367,8 +371,8 @@ export function Dashboard() {
     
                   const winners = event.vd_event_items
                     ? event.vd_event_items
-                        .filter((item: any) => item.is_selected)
-                        .sort((a: any, b: any) => (a.selection_order || 0) - (b.selection_order || 0))
+                        .filter((item: { is_selected: boolean }) => item.is_selected)
+                        .sort((a: { selection_order?: number | null }, b: { selection_order?: number | null }) => (a.selection_order || 0) - (b.selection_order || 0))
                     : [];
 
                   return (
@@ -427,7 +431,7 @@ export function Dashboard() {
                               Winners:
                             </span>
                             <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
-                              {winners.map((winner: any, idx: number) => (
+                              {winners.map((winner: { item_value: string }, idx: number) => (
                                 <div key={idx} className="text-2sm font-bold text-foreground">
                                   {winner.item_value}
                                 </div>

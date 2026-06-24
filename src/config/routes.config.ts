@@ -8,4 +8,5 @@ export const ROUTES = {
   DRAW_ROOM: (slugOrId: string) => `/draw/${slugOrId}`,
   DRAW_ROOM_PATTERN: '/draw/:slugOrId',
   LOGIN: '/login',
+  PROFILE: '/profile',
 } as const;
