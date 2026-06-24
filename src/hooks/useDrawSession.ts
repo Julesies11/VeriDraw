@@ -18,11 +18,14 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
   const [loading, setLoading] = useState(true);
   const [viewerCount, setViewerCount] = useState(1);
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   // Load initial data
   const loadInitialData = useCallback(async () => {
     try {
-      setLoading(true);
+      if (isInitialLoadRef.current) {
+        setLoading(true);
+      }
       const eventData = await eventsApi.getBySlugOrId(slugOrId);
       if (!eventData) {
         setEvent(null);
@@ -43,6 +46,7 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
       console.error('[useDrawSession Load Error]', error);
     } finally {
       setLoading(false);
+      isInitialLoadRef.current = false;
     }
   }, [slugOrId]);
 

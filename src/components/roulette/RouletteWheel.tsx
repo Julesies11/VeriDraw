@@ -13,6 +13,19 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
   const center = size / 2;
 
   const [pointerRotation, setPointerRotation] = useState(0);
+  const [renderedAngle, setRenderedAngle] = useState(() => {
+    // If we mount in a non-spinning state, initialize directly to the target rotationAngle
+    return isSpinning ? 0 : rotationAngle;
+  });
+
+  useEffect(() => {
+    // After mount, update the rendered angle to match the prop rotationAngle
+    const frame = requestAnimationFrame(() => {
+      setRenderedAngle(rotationAngle);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [rotationAngle]);
+
   const animFrameRef = useRef<number | null>(null);
   const startAngleRef = useRef(0);
   const targetAngleRef = useRef(0);
@@ -179,7 +192,7 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
       <div
         className="relative z-10 w-full h-full rounded-full shadow-[0_15px_35px_rgba(0,0,0,0.2)] overflow-hidden"
         style={{
-          transform: `rotate(${-rotationAngle}deg)`,
+          transform: `rotate(${-renderedAngle}deg)`,
           transition: isSpinning
             ? `transform ${spinDurationMs}ms cubic-bezier(0.2, 0.8, 0.3, 1)`
             : 'transform 0.5s ease-out',

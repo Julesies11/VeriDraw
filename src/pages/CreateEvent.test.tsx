@@ -33,8 +33,8 @@ describe('CreateEvent Page Smoke Test', () => {
       </MemoryRouter>
     );
 
-    expect(getByRole('heading', { name: 'Configure Selection Event' })).toBeDefined();
-    expect(getByText('1. Event Parameters')).toBeDefined();
-    expect(getByText('2. Candidate Entries')).toBeDefined();
+    expect(getByRole('heading', { name: 'Create Live Event' })).toBeDefined();
+    expect(getByText('1. Event Details')).toBeDefined();
+    expect(getByText('2. Entries')).toBeDefined();
   });
 });

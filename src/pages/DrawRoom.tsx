@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDrawSession } from '@/hooks/useDrawSession';
 import { drawApi } from '@/api/draw';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
+import { deriveWheelState } from '@/components/roulette/roulette-helpers';
 import { ROUTES } from '@/config/routes.config';
 import { ArrowLeft, Users, CheckCircle, RefreshCw, Trophy, Play, Info, Copy, Download, Calendar, List, Sparkles, Share2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -25,7 +26,6 @@ export function DrawRoom() {
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isActivating, setIsActivating] = useState(false);
   const [timerReady, setTimerReady] = useState(false);
-  const [preSpinSelectedIds, setPreSpinSelectedIds] = useState<Set<string>>(new Set());
   
   // Auditable reactions overlay state
   const [floatingReactions, setFloatingReactions] = useState<Array<{ id: number; type: string; x: number }>>([]);
@@ -43,6 +43,7 @@ export function DrawRoom() {
   const eventRef = useRef<any>(null);
   // Called after every winner dismiss — kept current via a useEffect below
   const afterDismissRef = useRef<() => void>(() => {});
+  const lastAnimatedWinnerIdRef = useRef<string | null>(null);
 
   // Trigger floating reaction animation locally
   const triggerLocalReaction = useCallback((type: string) => {
@@ -54,6 +55,18 @@ export function DrawRoom() {
     setTimeout(() => {
       setFloatingReactions(prev => prev.filter(r => r.id !== id));
     }, 2000);
+  }, []);
+
+  // Cancel any pending banner reveal or dismiss timeouts
+  const clearSessionTimeouts = useCallback(() => {
+    if (dismissTimeoutRef.current) {
+      clearTimeout(dismissTimeoutRef.current);
+      dismissTimeoutRef.current = null;
+    }
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
   }, []);
 
   // Callback to dismiss winner and rotate wheel back to 0 before removing slices
@@ -76,87 +89,52 @@ export function DrawRoom() {
 
       // Wait 500ms for rotation animation to complete before removing the slice from the wheel
       transitionTimeoutRef.current = setTimeout(() => {
-        setPreSpinSelectedIds(new Set());
         transitionTimeoutRef.current = null;
+        
+        // Host resets session status to idle in DB if event is active (not completed yet)
+        const currentEvent = eventRef.current;
+        if (currentEvent && currentEvent.status === 'active') {
+          const isHostUser = user && currentEvent.created_by === user.id;
+          const isLocalHost = JSON.parse(localStorage.getItem('vd_owned_events') || '{}')[currentEvent.id];
+          if (isHostUser || isLocalHost) {
+            drawApi.updateSessionStatus(currentEvent.id, 'idle', null)
+              .catch((err: unknown) => console.error('Failed to reset session status to idle:', err));
+          }
+        }
+
         // Trigger auto-continue (next spin or event completion) after wheel is fully reset
         afterDismissRef.current();
       }, 500);
 
       return false;
     });
-  }, []);
+  }, [user]);
 
   // Trigger spin animation locally (used by both host and viewer)
   const animateSpin = useCallback((targetAngle: number, durationMs: number, winnerId: string) => {
+    clearSessionTimeouts(); // Clear any pending winner reveal or dismiss timeouts from previous spins
+    lastAnimatedWinnerIdRef.current = winnerId;
     setLocalWinner(null);
     setShowWinnerBanner(false);
     setIsSpinning(true);
     setSpinDuration(durationMs);
     setRotationAngle(targetAngle);
 
-    // Snapshot selected items at start of animation if not already captured
-    setPreSpinSelectedIds((prev) => {
-      if (prev.size === 0) {
-        return new Set(
-          itemsRef.current
-            .filter((item) => item.is_selected && item.id !== winnerId)
-            .map((item) => item.id)
-        );
-      }
-      return prev;
-    });
-
     // Wait for animation to finish
     setTimeout(() => {
       setIsSpinning(false);
-      // Trigger premium wow factor confetti
-      confetti({
-        particleCount: 150,
-        spread: 80,
-        origin: { y: 0.6 },
-      });
-      // Set the active winner details for display
-      setLocalWinner(winnerId);
-      setShowWinnerBanner(true);
-
-      // Clear any existing auto-dismiss timer
-      if (dismissTimeoutRef.current) {
-        clearTimeout(dismissTimeoutRef.current);
-      }
-      // Auto dismiss after 6 seconds to rotate back and remove the slice
-        dismissTimeoutRef.current = setTimeout(() => {
-          handleDismissWinner();
-        }, 2500);
     }, durationMs);
-  }, [handleDismissWinner]);
+  }, [clearSessionTimeouts]);
 
   // Instantly start visual spinning phase
   const handleLocalSpinStart = useCallback(() => {
-    // Clear any pending timeouts to avoid visual state issues
-    if (dismissTimeoutRef.current) {
-      clearTimeout(dismissTimeoutRef.current);
-      dismissTimeoutRef.current = null;
-    }
-    if (transitionTimeoutRef.current) {
-      clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
-    }
-
+    clearSessionTimeouts(); // Clear any pending timeouts to avoid visual state issues
     setLocalWinner(null);
     setShowWinnerBanner(false);
     setIsSpinning(true);
     setSpinDuration(8000); // 8s anticipation spin time
     setRotationAngle((prev) => prev + 1800); // Rotate 5 quick turns immediately
-
-    // Snapshot currently selected IDs to prevent premature spoilers
-    setPreSpinSelectedIds(
-      new Set(
-        itemsRef.current
-          .filter((item) => item.is_selected)
-          .map((item) => item.id)
-      )
-    );
-  }, []);
+  }, [clearSessionTimeouts]);
 
   // Hook into realtime draw session
   const {
@@ -188,16 +166,85 @@ export function DrawRoom() {
     eventRef.current = event;
   }, [event]);
 
+  // Listen to session status changes from DB to trigger the spin animation (supports host-less draws)
+  useEffect(() => {
+    if (!session) return;
+
+    const winnerId = session.active_winner_id;
+
+    if (session.current_status === 'spinning' && winnerId) {
+      if (lastAnimatedWinnerIdRef.current !== winnerId) {
+        const spinStartTime = session.spin_start_time ? new Date(session.spin_start_time).getTime() : Date.now();
+        let elapsedTime = Date.now() - spinStartTime;
+        if (elapsedTime < 0) {
+          elapsedTime = 0; // Safeguard against client clock drift where client is behind server
+        }
+        const spinDuration = session.spin_duration_ms || 4000;
+        const remainingDuration = Math.max(500, spinDuration - elapsedTime);
+
+        animateSpin(Number(session.last_spin_angle), remainingDuration, winnerId);
+        lastAnimatedWinnerIdRef.current = winnerId;
+        
+        // Trigger a background refetch so the local list is refreshed immediately
+        refetch();
+      }
+    } else if (session.current_status === 'landed' && winnerId) {
+      if (lastAnimatedWinnerIdRef.current !== winnerId + '_landed') {
+        setIsSpinning(false);
+        setLocalWinner(winnerId);
+        setShowWinnerBanner(true);
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 },
+        });
+        lastAnimatedWinnerIdRef.current = winnerId + '_landed';
+        
+        // Refresh selection history and items list
+        refetch();
+
+        // Auto dismiss after 2.5 seconds (visual only on the client)
+        if (dismissTimeoutRef.current) {
+          clearTimeout(dismissTimeoutRef.current);
+        }
+        dismissTimeoutRef.current = setTimeout(() => {
+          handleDismissWinner();
+        }, 2500);
+      }
+    } else if (session.current_status === 'idle') {
+      if (lastAnimatedWinnerIdRef.current !== null) {
+        setIsSpinning(false);
+        setShowWinnerBanner(false);
+        setLocalWinner(null);
+        setRotationAngle(0);
+        lastAnimatedWinnerIdRef.current = null;
+        
+        refetch();
+      }
+    }
+  }, [session, animateSpin, refetch, handleDismissWinner]);
+
   // Calculate and update the countdown timer
   useEffect(() => {
-    setTimerReady(false);
+    let active = true;
+
+    // Defer the setTimerReady to avoid ESLint synchronous state updates in effect
+    const deferTimer = setTimeout(() => {
+      if (!active) return;
+      setTimerReady(false);
+    }, 0);
 
     if (!event || event.status !== 'scheduled') {
       const timer = setTimeout(() => {
+        if (!active) return;
         setTimeLeft(0);
         setTimerReady(false);
       }, 0);
-      return () => clearTimeout(timer);
+      return () => {
+        active = false;
+        clearTimeout(deferTimer);
+        clearTimeout(timer);
+      };
     }
 
     const calculateTimeLeft = () => {
@@ -248,8 +295,6 @@ export function DrawRoom() {
     return false;
   }, [user, event]);
 
-  const hasAutoSpunRef = useRef(false);
-
   // Handle Host Spin Trigger
   const handleHostSpin = useCallback(async () => {
     if (isSpinning || !eventId) return;
@@ -282,41 +327,25 @@ export function DrawRoom() {
     }
   }, [eventId, isSpinning, handleLocalSpinStart, broadcastSpinStart, broadcastSpin, animateSpin]);
 
-  // Auto-activate event when countdown hits 0 (Host only)
+  // Auto-activate event when countdown hits 0 (Host or spectator)
   useEffect(() => {
     // timerReady guards the initial render where timeLeft=0 before the real countdown starts.
-    // Without this, the effect would fire immediately on page load before any seconds are counted.
-    if (!event || event.status !== 'scheduled' || !isHost || !timerReady || timeLeft > 0) return;
+    if (!event || event.status !== 'scheduled' || !timerReady || timeLeft > 0 || isActivating) return;
 
     const activateEvent = async () => {
       try {
         setIsActivating(true);
-        await drawApi.updateEventStatus(event.id, 'active');
-        refetch();
+        await drawApi.triggerAutoDraw(event.id);
+        await refetch();
       } catch (err: unknown) {
         console.error('Failed to auto-activate event:', err);
+      } finally {
         setIsActivating(false);
       }
     };
 
     activateEvent();
-  }, [event, isHost, timeLeft, timerReady, refetch]);
-
-  // Auto-spin first round when event becomes active (Host only)
-  useEffect(() => {
-    if (loading || !event || event.status !== 'active' || !isHost || hasAutoSpunRef.current) return;
-
-    // Only auto-spin if no items have been selected yet (first round)
-    const alreadySelectedCount = items.filter(item => item.is_selected).length;
-    if (alreadySelectedCount > 0) return;
-
-    hasAutoSpunRef.current = true;
-    const timer = setTimeout(() => {
-      handleHostSpin();
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [event, isHost, items, loading, handleHostSpin]);
+  }, [event, timeLeft, timerReady, isActivating, refetch]);
 
   // Keep afterDismissRef current so handleDismissWinner always calls the latest auto-continue logic.
   // This fires after every winner dismiss (once the wheel has fully reset).
@@ -330,16 +359,16 @@ export function DrawRoom() {
       const hasRemaining = currentItems.some((i: { is_selected: boolean }) => !i.is_selected);
 
       if (selectedCount >= totalNeeded || !hasRemaining) {
-        // All winners selected — mark event as completed
-        drawApi.updateEventStatus(eventRef.current.id, 'completed')
+        // All winners selected — mark event as completed and session as idle
+        Promise.all([
+          drawApi.updateEventStatus(eventRef.current.id, 'completed'),
+          drawApi.updateSessionStatus(eventRef.current.id, 'idle', null)
+        ])
           .then(() => refetch())
           .catch((err: unknown) => console.error('Failed to complete event:', err));
-      } else {
-        // More winners needed — spin again immediately
-        handleHostSpin();
       }
     };
-  }, [isHost, handleHostSpin, refetch]);
+  }, [isHost, refetch]);
 
   // Re-initialize a completely fresh live draw
   const handleCreateNewDraw = () => {
@@ -369,20 +398,12 @@ export function DrawRoom() {
     if (!eventId || isSpinning) return;
     if (!confirm('Are you sure you want to reset all selections? This deletes selection order history.')) return;
 
-    if (dismissTimeoutRef.current) {
-      clearTimeout(dismissTimeoutRef.current);
-      dismissTimeoutRef.current = null;
-    }
-    if (transitionTimeoutRef.current) {
-      clearTimeout(transitionTimeoutRef.current);
-      transitionTimeoutRef.current = null;
-    }
+    clearSessionTimeouts();
 
     try {
       await drawApi.resetEvent(eventId);
       setRotationAngle(0);
       setLocalWinner(null);
-      setPreSpinSelectedIds(new Set());
       setShowWinnerBanner(false);
       refetch();
     } catch (err: unknown) {
@@ -448,26 +469,29 @@ export function DrawRoom() {
     return items.find((item) => item.id === activeWinnerId);
   }, [localWinner, session, items]);
 
-  // Overrides selected status of new items while wheel is spinning to avoid spoilers
-  const visualItems = useMemo(() => {
-    if (!isSpinning) return items;
-    return items.map((item) => {
-      const wasSelectedBefore = preSpinSelectedIds.has(item.id);
-      return { ...item, is_selected: wasSelectedBefore };
-    });
-  }, [items, isSpinning, preSpinSelectedIds]);
+  // Derive the wheel state and round info using our pure testable helper
+  const { wheelItems } = useMemo(() => {
+    return deriveWheelState(items, session);
+  }, [items, session]);
 
-  // Group selection history list
+  // Use wheelItems as our visual items representation for the RouletteWheel component
+  const visualItems = wheelItems;
+
+  // Group selection history list: show items when they are selected, excluding the active winner ONLY while spinning to preserve surprise
   const selectedItems = useMemo(() => {
-    return visualItems
-      .filter((item) => item.is_selected)
+    const activeWinnerId = session?.active_winner_id;
+    const isSpinning = session?.current_status === 'spinning';
+    return items
+      .filter((item) => item.is_selected && (!isSpinning || item.id !== activeWinnerId))
       .sort((a, b) => (a.selection_order || 0) - (b.selection_order || 0));
-  }, [visualItems]);
+  }, [items, session]);
 
   // Group remaining items in pool
   const remainingItems = useMemo(() => {
-    return visualItems.filter((item) => !item.is_selected);
-  }, [visualItems]);
+    const activeWinnerId = session?.active_winner_id;
+    const isSpinningOrLanded = session?.current_status === 'spinning' || session?.current_status === 'landed';
+    return items.filter((item) => !item.is_selected || (isSpinningOrLanded && item.id === activeWinnerId));
+  }, [items, session]);
 
   // Formulate Live Audit Trail Logs based on draw history timestamps
   const auditLogs = useMemo(() => {
@@ -841,11 +865,14 @@ export function DrawRoom() {
                 <button
                   onClick={async () => {
                     try {
-                      await drawApi.updateEventStatus(event.id, 'active');
-                      refetch();
+                      setIsActivating(true);
+                      await drawApi.triggerAutoDraw(event.id);
+                      await refetch();
                     } catch (err: unknown) {
                       console.error(err);
                       alert(getFriendlyErrorMessage(err, 'Failed to start draw.'));
+                    } finally {
+                      setIsActivating(false);
                     }
                   }}
                   className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-95 transition-all cursor-pointer"

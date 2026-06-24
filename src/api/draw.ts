@@ -36,6 +36,23 @@ export const drawApi = {
   },
 
   /**
+   * Triggers a server-side auto-draw loop via the vd-run-auto-draw Edge Function.
+   * This is invoked anonymously by spectator clients when a countdown finishes.
+   */
+  async triggerAutoDraw(eventId: string) {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    const { data, error } = await supabase.functions.invoke('vd-run-auto-draw', {
+      body: { event_id: eventId },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
    * Reset session status to idle and set landed winner to null.
    */
   async updateSessionStatus(eventId: string, status: 'idle' | 'spinning' | 'landed', winnerId?: string | null) {

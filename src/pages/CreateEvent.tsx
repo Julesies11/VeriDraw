@@ -315,7 +315,7 @@ export function CreateEvent() {
                       name="visibility"
                       value="public"
                       checked={!formData.require_viewer_login}
-                      onChange={() => setFormData((prev: any) => ({ ...prev, require_viewer_login: false, enable_public_link: true }))}
+                      onChange={() => setFormData((prev) => ({ ...prev, require_viewer_login: false, enable_public_link: true }))}
                       className="w-4 h-4 border-border text-primary focus:ring-ring"
                     />
                     <span>Public — anyone with the link can watch</span>
@@ -335,7 +335,7 @@ export function CreateEvent() {
                       name="visibility"
                       value="private"
                       checked={formData.require_viewer_login}
-                      onChange={() => setFormData((prev: any) => ({ ...prev, require_viewer_login: true, enable_public_link: false }))}
+                      onChange={() => setFormData((prev) => ({ ...prev, require_viewer_login: true, enable_public_link: false }))}
                       className="w-4 h-4 border-border text-primary focus:ring-ring"
                     />
                     <span>Private — viewers must be signed in to watch</span>

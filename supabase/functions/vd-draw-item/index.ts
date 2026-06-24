@@ -65,13 +65,16 @@ serve(async (req) => {
       );
     }
 
-    // 2. Load the event using service role client to check ownership and status
+    // 2. Load the event and session using service role client to check ownership, status, and session concurrency
     const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
-    const { data: event, error: eventError } = await serviceClient
-      .from("vd_events")
-      .select("created_by, status, select_count")
-      .eq("id", event_id)
-      .single();
+    
+    const [eventResult, sessionResult] = await Promise.all([
+      serviceClient.from("vd_events").select("created_by, status, select_count").eq("id", event_id).single(),
+      serviceClient.from("vd_event_sessions").select("current_status, last_spin_angle").eq("event_id", event_id).single()
+    ]);
+
+    const { data: event, error: eventError } = eventResult;
+    const { data: session, error: sessionError } = sessionResult;
 
     if (eventError || !event) {
       return new Response(
@@ -95,14 +98,21 @@ serve(async (req) => {
       );
     }
 
-    // 3. Fetch unselected items for this event (ordered by created_at and id to match client list)
+    // Concurrency Guard: Block manual draws if another spin is currently active
+    if (session && session.current_status === "spinning") {
+      return new Response(
+        JSON.stringify({ error: "A spin is already in progress. Please wait for the current round to finish." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 3. Fetch unselected items for this event (ordered by display_order to match client list)
     const { data: items, error: itemsError } = await serviceClient
       .from("vd_event_items")
       .select("id, item_value")
       .eq("event_id", event_id)
       .eq("is_selected", false)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true });
+      .order("display_order", { ascending: true });
 
     if (itemsError) {
       return new Response(
@@ -160,8 +170,13 @@ serve(async (req) => {
     const N = items.length;
     const sliceAngle = 360 / N;
     const spinDuration = 4000;
-    // Align index `randomIndex` under the 12 o'clock pointer
-    const targetAngle = 360 * 5 + (randomIndex * sliceAngle) + Math.random() * (sliceAngle - 2);
+    // Calculate target angle to align selected slice with indicator pointer
+    const targetBaseAngle = (randomIndex * sliceAngle) + Math.random() * (sliceAngle - 2);
+    
+    // Make target angle cumulative (at least 5 revolutions from last spin angle)
+    const lastAngle = Number(session?.last_spin_angle || 0);
+    const K = Math.ceil((lastAngle + 1800 - targetBaseAngle) / 360);
+    const targetAngle = 360 * K + targetBaseAngle;
 
     const { error: sessionError } = await serviceClient
       .from("vd_event_sessions")

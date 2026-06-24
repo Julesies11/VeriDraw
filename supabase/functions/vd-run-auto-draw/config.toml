@@ -1,0 +1,4 @@
+# supabase/functions/vd-run-auto-draw/config.toml
+# Disables gateway-level JWT verification so that pg_net/cron can trigger the function internally 
+# without storing api keys in the database. Security is handled via x-veridraw-cron-secret.
+verify_jwt = false
