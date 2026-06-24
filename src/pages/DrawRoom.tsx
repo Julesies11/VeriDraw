@@ -8,14 +8,15 @@ import { deriveWheelState } from '@/components/roulette/roulette-helpers';
 import { ROUTES } from '@/config/routes.config';
 import { ArrowLeft, Users, CheckCircle, RefreshCw, Trophy, Play, Info, Copy, Download, Calendar, List, Sparkles, Share2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { getFriendlyErrorMessage } from '@/lib/error-helpers';
+import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
+import { CountdownTimer } from '@/components/draw/CountdownTimer';
+import { ReactionsOverlay, type ReactionsOverlayRef } from '@/components/draw/ReactionsOverlay';
+import { InviteModal } from '@/components/modals/InviteModal';
 
 export function DrawRoom() {
   const { slugOrId } = useParams<{ slugOrId: string }>();
   const { user, loading: loadingAuth } = useAuth();
   const navigate = useNavigate();
-
-  // Local state for resets
 
   // Local state for wheel rotation and animation
   const [rotationAngle, setRotationAngle] = useState(0);
@@ -23,15 +24,15 @@ export function DrawRoom() {
   const [spinDuration, setSpinDuration] = useState(4000);
   const [localWinner, setLocalWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
-  const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isActivating, setIsActivating] = useState(false);
-  const [timerReady, setTimerReady] = useState(false);
   
   // Auditable reactions overlay state
-  const [floatingReactions, setFloatingReactions] = useState<Array<{ id: number; type: string; x: number }>>([]);
+  const reactionsRef = useRef<ReactionsOverlayRef>(null);
 
   // Sharing states
-  const [showShareModal, setShowShareModal] = useState(false);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
+  // Copy-to-clipboard state for the inline scheduled panel share section
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -47,14 +48,7 @@ export function DrawRoom() {
 
   // Trigger floating reaction animation locally
   const triggerLocalReaction = useCallback((type: string) => {
-    const id = Date.now() + Math.random();
-    const x = 15 + Math.random() * 70; // random offset between 15% and 85% width
-    setFloatingReactions(prev => [...prev, { id, type, x }]);
-    
-    // Auto-remove reaction after 2s
-    setTimeout(() => {
-      setFloatingReactions(prev => prev.filter(r => r.id !== id));
-    }, 2000);
+    reactionsRef.current?.triggerReaction(type);
   }, []);
 
   // Cancel any pending banner reveal or dismiss timeouts
@@ -224,63 +218,21 @@ export function DrawRoom() {
     }
   }, [session, animateSpin, refetch, handleDismissWinner]);
 
-  // Calculate and update the countdown timer
-  useEffect(() => {
-    let active = true;
-
-    // Defer the setTimerReady to avoid ESLint synchronous state updates in effect
-    const deferTimer = setTimeout(() => {
-      if (!active) return;
-      setTimerReady(false);
-    }, 0);
-
-    if (!event || event.status !== 'scheduled') {
-      const timer = setTimeout(() => {
-        if (!active) return;
-        setTimeLeft(0);
-        setTimerReady(false);
-      }, 0);
-      return () => {
-        active = false;
-        clearTimeout(deferTimer);
-        clearTimeout(timer);
-      };
+  // Stable callback invoked by CountdownTimer when the scheduled time expires.
+  // Triggers auto-draw activation; guarded internally against double-calls.
+  const handleAutoActivate = useCallback(async () => {
+    if (!event || event.status !== 'scheduled' || isActivating) return;
+    try {
+      setIsActivating(true);
+      await drawApi.triggerAutoDraw(event.id);
+      await refetch();
+    } catch (err: unknown) {
+      console.error('Failed to auto-activate event:', err);
+      logErrorToDb(err, { context: 'DrawRoom.handleAutoActivate', eventId: event.id });
+    } finally {
+      setIsActivating(false);
     }
-
-    const calculateTimeLeft = () => {
-      const difference = new Date(event.scheduled_start_time).getTime() - Date.now();
-      return Math.max(0, Math.floor(difference / 1000));
-    };
-
-    const timer = setTimeout(() => {
-      setTimeLeft(calculateTimeLeft());
-      setTimerReady(true);
-    }, 0);
-
-    const interval = setInterval(() => {
-      const remaining = calculateTimeLeft();
-      setTimeLeft(remaining);
-      if (remaining <= 0) {
-        clearInterval(interval);
-      }
-    }, 1000);
-
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [event]);
-
-  const formatCountdown = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return [
-      hrs.toString().padStart(2, '0'),
-      mins.toString().padStart(2, '0'),
-      secs.toString().padStart(2, '0'),
-    ].join(':');
-  };
+  }, [event, isActivating, refetch]);
 
   const isHost = useMemo(() => {
     if (user && event && event.created_by === user.id) {
@@ -323,29 +275,12 @@ export function DrawRoom() {
 
     } catch (err: unknown) {
       setIsSpinning(false);
+      logErrorToDb(err, { context: 'DrawRoom.handleHostSpin', eventId });
       alert(getFriendlyErrorMessage(err, 'Failed to spin.'));
     }
   }, [eventId, isSpinning, handleLocalSpinStart, broadcastSpinStart, broadcastSpin, animateSpin]);
 
-  // Auto-activate event when countdown hits 0 (Host or spectator)
-  useEffect(() => {
-    // timerReady guards the initial render where timeLeft=0 before the real countdown starts.
-    if (!event || event.status !== 'scheduled' || !timerReady || timeLeft > 0 || isActivating) return;
-
-    const activateEvent = async () => {
-      try {
-        setIsActivating(true);
-        await drawApi.triggerAutoDraw(event.id);
-        await refetch();
-      } catch (err: unknown) {
-        console.error('Failed to auto-activate event:', err);
-      } finally {
-        setIsActivating(false);
-      }
-    };
-
-    activateEvent();
-  }, [event, timeLeft, timerReady, isActivating, refetch]);
+  // NOTE: Auto-activation is now handled via the CountdownTimer onCommenced callback (handleAutoActivate).
 
   // Keep afterDismissRef current so handleDismissWinner always calls the latest auto-continue logic.
   // This fires after every winner dismiss (once the wheel has fully reset).
@@ -407,6 +342,7 @@ export function DrawRoom() {
       setShowWinnerBanner(false);
       refetch();
     } catch (err: unknown) {
+      logErrorToDb(err, { context: 'DrawRoom.handleHostReset', eventId });
       alert(getFriendlyErrorMessage(err, 'Failed to reset.'));
     }
   };
@@ -604,123 +540,15 @@ export function DrawRoom() {
 
   return (
     <div className="space-y-6 animate-fade-in relative min-h-[85vh]">
-      {/* Floating emoji reactions container overlay */}
-      <div className="absolute inset-x-0 bottom-0 top-20 pointer-events-none z-40 overflow-hidden">
-        {floatingReactions.map(r => {
-          const emojiMap: Record<string, string> = { fair: '👍', exciting: '🎉', verify: '🔍' };
-          return (
-            <span
-              key={r.id}
-              className="absolute text-3xl animate-float-up pointer-events-none select-none"
-              style={{
-                left: `${r.x}%`,
-                bottom: '10%',
-              }}
-            >
-              {emojiMap[r.type] || r.type}
-            </span>
-          );
-        })}
-      </div>
+      {/* Floating emoji reactions overlay — managed by ReactionsOverlay via ref */}
+      <ReactionsOverlay ref={reactionsRef} />
 
       {/* Invite & Share Modal */}
-      {showShareModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in animate-duration-200">
-          <div className="bg-background border border-border/80 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-6 relative animate-scale-in">
-            {/* Close button */}
-            <button
-              onClick={() => setShowShareModal(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-all cursor-pointer font-bold"
-            >
-              ✕
-            </button>
-
-            <div className="text-center space-y-1.5">
-              <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
-                <Users className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-black font-heading tracking-tight">Invite Participants</h3>
-              <p className="text-2xs text-muted-foreground">
-                Share this draw event with others so they can join and watch live!
-              </p>
-            </div>
-
-            {/* Invite Code Section */}
-            <div className="p-4 bg-secondary/50 border border-border/20 rounded-2xl space-y-2.5 text-center">
-              <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">Invite Code</span>
-              <div className="flex items-center justify-center gap-3">
-                <span className="text-3xl font-black font-mono tracking-wider text-foreground select-all">
-                  {inviteCode}
-                </span>
-                <button
-                  onClick={handleCopyCode}
-                  className={`p-2 rounded-xl transition-all cursor-pointer ${
-                    copiedCode
-                      ? 'bg-green-500 text-white border-green-500'
-                      : 'bg-background hover:bg-border/20 border border-border text-muted-foreground hover:text-foreground'
-                  }`}
-                  title="Copy Invite Code"
-                >
-                  {copiedCode ? <CheckCircle className="w-4.5 h-4.5" /> : <Copy className="w-4.5 h-4.5" />}
-                </button>
-              </div>
-              {copiedCode && <span className="text-3xs font-bold text-green-500 animate-pulse">Code copied!</span>}
-            </div>
-
-            {/* Public Link Section */}
-            <div className="space-y-2">
-              <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">Direct Invite Link</span>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/draw/${inviteCode.toLowerCase()}`}
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2xs font-mono focus:outline-none"
-                />
-                <button
-                  onClick={handleCopyLink}
-                  className={`px-4 rounded-xl font-semibold text-2xs transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
-                    copiedLink
-                      ? 'bg-green-500 text-white'
-                      : 'bg-primary text-primary-foreground hover:opacity-90 shadow-sm shadow-primary/10'
-                  }`}
-                >
-                  {copiedLink ? (
-                    <>
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3.5 h-3.5" />
-                      Copy Link
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* How to Join Steps */}
-            <div className="pt-2 border-t border-border/10 space-y-2.5">
-              <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">How to join:</span>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-2.5 bg-secondary/25 border border-border/15 rounded-xl space-y-1">
-                  <span className="text-3xs font-bold text-primary block">Step 1</span>
-                  <span className="text-4xs text-muted-foreground block leading-tight">Go to VeriDraw dashboard</span>
-                </div>
-                <div className="p-2.5 bg-secondary/25 border border-border/15 rounded-xl space-y-1">
-                  <span className="text-3xs font-bold text-primary block">Step 2</span>
-                  <span className="text-4xs text-muted-foreground block leading-tight">Enter code <strong className="font-semibold">{inviteCode}</strong></span>
-                </div>
-                <div className="p-2.5 bg-secondary/25 border border-border/15 rounded-xl space-y-1">
-                  <span className="text-3xs font-bold text-primary block">Step 3</span>
-                  <span className="text-4xs text-muted-foreground block leading-tight">Watch the spins live!</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <InviteModal
+        isOpen={isInviteModalOpen}
+        onClose={() => setIsInviteModalOpen(false)}
+        inviteCode={inviteCode}
+      />
 
       {/* Header Info */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 glass border border-border/40 rounded-2xl">
@@ -735,7 +563,7 @@ export function DrawRoom() {
         <div className="flex flex-wrap items-center gap-3">
           {inviteCode && (
             <button
-              onClick={() => setShowShareModal(true)}
+              onClick={() => setIsInviteModalOpen(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-2sm font-semibold hover:bg-primary/15 transition-all cursor-pointer shadow-sm shadow-primary/5 active:scale-95"
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -778,41 +606,12 @@ export function DrawRoom() {
                 <h3 className="text-2sm font-extrabold tracking-widest uppercase text-muted-foreground">
                   Live Selection Commences In
                 </h3>
-                {!timerReady ? (
-                  // Blank while the first real timeLeft value is being computed
-                  <div className="h-14" />
-                ) : timeLeft > 0 ? (
-                  <div className="space-y-2.5">
-                    <div className="text-5xl font-black font-mono tracking-wider text-primary select-none drop-shadow-[0_0_15px_rgba(30,96,145,0.25)]">
-                      {formatCountdown(timeLeft)}
-                    </div>
-                    <p className="text-2xs text-muted-foreground font-semibold flex items-center justify-center gap-1.5">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" />
-                      Scheduled to start: {new Date(event.scheduled_start_time).toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })} ({Intl.DateTimeFormat().resolvedOptions().timeZone})
-                    </p>
-                  </div>
-                ) : isActivating ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-                    <span className="text-sm font-bold text-primary animate-pulse">Launching draw...</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    <div className="text-sm font-semibold text-green-600 dark:text-green-400 flex items-center justify-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      <span>Draw is ready to commence!</span>
-                    </div>
-                    <p className="text-2xs text-muted-foreground font-semibold">
-                      Scheduled start: {new Date(event.scheduled_start_time).toLocaleString(undefined, {
-                        dateStyle: 'medium',
-                        timeStyle: 'short',
-                      })} ({Intl.DateTimeFormat().resolvedOptions().timeZone})
-                    </p>
-                  </div>
-                )}
+                <CountdownTimer
+                  scheduledStartTime={event.scheduled_start_time}
+                  status={event.status}
+                  onCommenced={handleAutoActivate}
+                  isActivating={isActivating}
+                />
               </div>
 
               {/* Share Panel */}

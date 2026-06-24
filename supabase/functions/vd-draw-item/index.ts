@@ -12,6 +12,8 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let event_id: string | undefined;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -24,7 +26,16 @@ serve(async (req) => {
       );
     }
 
-    const { event_id } = await req.json();
+    try {
+      const body = await req.json();
+      event_id = body?.event_id;
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON request body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!event_id) {
       return new Response(
         JSON.stringify({ error: "event_id is required" }),
@@ -232,6 +243,21 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
+    console.error(`[vd-draw-item Error]`, error);
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      if (supabaseUrl && supabaseServiceKey) {
+        const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+        await serviceClient.from("vd_error_logs").insert({
+          error_message: error.message || String(error),
+          error_stack: error.stack,
+          context: { function: "vd-draw-item", event_id }
+        });
+      }
+    } catch (logErr) {
+      console.error("Failed to write function crash to DB:", logErr);
+    }
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

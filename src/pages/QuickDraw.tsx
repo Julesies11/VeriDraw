@@ -7,20 +7,7 @@ import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import confetti from 'canvas-confetti';
 import { eventsApi } from '@/api/events';
 import { getFriendlyErrorMessage } from '@/lib/error-helpers';
-
-function generateSecureCode(length: number): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  const tempArray = new Uint8Array(1);
-  while (result.length < length) {
-    globalThis.crypto.getRandomValues(tempArray);
-    const val = tempArray[0];
-    if (val < 252) {
-      result += chars.charAt(val % 36);
-    }
-  }
-  return result;
-}
+import { generateSecureCode } from '@/lib/crypto';
 
 interface QuickDrawItem {
   id: string;

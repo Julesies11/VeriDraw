@@ -16,20 +16,21 @@ serve(async (req) => {
   const startTime = Date.now();
   const MAX_EXECUTION_TIME_MS = 120000; // 2-minute safety limit to prevent Edge Function timeout
 
+  let event_id: string | undefined;
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const cronSecret = Deno.env.get("CRON_SECRET") || "vd-cron-secret-token-389f4b";
+    const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseServiceKey || !cronSecret) {
       return new Response(
-        JSON.stringify({ error: "Missing environment variables on server." }),
+        JSON.stringify({ error: "Missing environment variables on server (including CRON_SECRET)." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     // 1. Parse JSON Body
-    let event_id: string;
     try {
       const body = await req.json();
       event_id = body?.event_id;
@@ -333,6 +334,20 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error(`[vd-run-auto-draw Error]`, error);
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+      if (supabaseUrl && supabaseServiceKey) {
+        const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
+        await serviceClient.from("vd_error_logs").insert({
+          error_message: error.message || String(error),
+          error_stack: error.stack,
+          context: { function: "vd-run-auto-draw", event_id }
+        });
+      }
+    } catch (logErr) {
+      console.error("Failed to write function crash to DB:", logErr);
+    }
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

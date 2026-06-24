@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { eventsApi } from '@/api/events';
 import { useDirtyTracker } from '@/hooks/useDirtyTracker';
 import { ROUTES } from '@/config/routes.config';
-import { getFriendlyErrorMessage } from '@/lib/error-helpers';
-import { ArrowLeft, Save, List, Upload, Settings, FileText, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
+import { ArrowLeft, Save, List, Upload, Settings, FileText, ChevronDown, ChevronUp, Info, Loader2 } from 'lucide-react';
 
 interface CreateEventFormData {
   name: string;
@@ -20,6 +21,7 @@ interface CreateEventFormData {
 }
 
 export function CreateEvent() {
+  const { user, loading: loadingAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
@@ -28,6 +30,13 @@ export function CreateEvent() {
   // Navigation tabs for data entry
   const [activeTab, setActiveTab] = useState<'paste' | 'csv'>('paste');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Redirect if not authenticated
+  useEffect(() => {
+    if (!loadingAuth && !user) {
+      navigate(ROUTES.LOGIN, { state: { from: ROUTES.CREATE_EVENT } });
+    }
+  }, [user, loadingAuth, navigate]);
 
   // Form states
   const [formData, setFormData] = useState<CreateEventFormData>({
@@ -199,11 +208,21 @@ export function CreateEvent() {
       navigate(ROUTES.DRAW_ROOM(newEvent.slug));
     } catch (err: unknown) {
       console.error(err);
+      void logErrorToDb(err, { component: 'CreateEvent', action: 'submit' });
       setError(getFriendlyErrorMessage(err, 'Failed to create drawing event.'));
     } finally {
       setLoading(false);
     }
   };
+
+  if (loadingAuth || !user) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        <span className="text-sm text-muted-foreground font-semibold">Verifying session...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">

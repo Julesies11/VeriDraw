@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { TABLES } from '@/config/db-tables';
 import type { Database } from '@/models/database.types';
 import type { PostgrestError } from '@supabase/supabase-js';
+import { generateSecureCode } from '@/lib/crypto';
 
 export type EventInsert = Database['public']['Tables']['vd_events']['Insert'];
 export type EventUpdate = Database['public']['Tables']['vd_events']['Update'];
@@ -237,21 +238,9 @@ export const eventsApi = {
 
   /**
    * Generates a cryptographically secure random alphanumeric code.
-   * Modulo bias is avoided by rejecting values >= 252.
    */
   generateSecureCode(length: number): string {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    const tempArray = new Uint8Array(1);
-    
-    while (result.length < length) {
-      globalThis.crypto.getRandomValues(tempArray);
-      const val = tempArray[0];
-      if (val < 252) {
-        result += chars.charAt(val % 36);
-      }
-    }
-    return result;
+    return generateSecureCode(length);
   },
 
   /**

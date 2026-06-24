@@ -9164,6 +9164,33 @@ export type Database = {
           },
         ]
       }
+      vd_error_logs: {
+        Row: {
+          context: Json | null
+          created_at: string
+          error_message: string
+          error_stack: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          context?: Json | null
+          created_at?: string
+          error_message: string
+          error_stack?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          context?: Json | null
+          created_at?: string
+          error_message?: string
+          error_stack?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       vd_event_items: {
         Row: {
           created_at: string
@@ -9336,6 +9363,27 @@ export type Database = {
         }
         Relationships: []
       }
+      vd_settings: {
+        Row: {
+          created_at: string
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -9392,6 +9440,7 @@ export type Database = {
         }
         Returns: string
       }
+      vd_check_and_activate_scheduled_draws: { Args: never; Returns: undefined }
     }
     Enums: {
       donation_status: "pending" | "successful" | "failed"

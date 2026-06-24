@@ -7,6 +7,7 @@ export const TABLES = {
   EVENT_ITEMS: 'vd_event_items',
   EVENT_SESSIONS: 'vd_event_sessions',
   PROFILES: 'vd_profiles',
+  ERROR_LOGS: 'vd_error_logs',
 } as const;
 
 export type TableName = (typeof TABLES)[keyof typeof TABLES];
