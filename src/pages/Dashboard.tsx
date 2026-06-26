@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { eventsApi, type EventRow } from '@/api/events';
 import { ROUTES } from '@/config/routes.config';
@@ -385,7 +385,7 @@ export function Dashboard() {
                         <div className="flex items-center justify-between mb-3">
                           {event.status === 'completed' ? (
                             <div className="flex gap-2">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-400 text-2xs font-bold uppercase">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-2xs font-bold uppercase">
                                 Completed
                               </span>
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-secondary text-foreground text-2xs font-bold uppercase">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 interface CountdownTimerProps {
   scheduledStartTime: string;
@@ -12,20 +12,12 @@ export function CountdownTimer({ scheduledStartTime, status, onCommenced, isActi
   const [timerReady, setTimerReady] = useState(false);
 
   useEffect(() => {
-    let active = true;
-
-    const deferTimer = setTimeout(() => {
-      if (!active) return;
-      setTimerReady(false);
-    }, 0);
-
     if (status !== 'scheduled') {
-      setTimeLeft(0);
-      setTimerReady(false);
-      return () => {
-        active = false;
-        clearTimeout(deferTimer);
-      };
+      const timer = setTimeout(() => {
+        setTimeLeft(0);
+        setTimerReady(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     const calculateTimeLeft = () => {
@@ -33,8 +25,11 @@ export function CountdownTimer({ scheduledStartTime, status, onCommenced, isActi
       return Math.max(0, Math.floor(difference / 1000));
     };
 
-    setTimeLeft(calculateTimeLeft());
-    setTimerReady(true);
+    let initTimer: ReturnType<typeof setTimeout> | null = null;
+    initTimer = setTimeout(() => {
+      setTimeLeft(calculateTimeLeft());
+      setTimerReady(true);
+    }, 0);
 
     const interval = setInterval(() => {
       const remaining = calculateTimeLeft();
@@ -45,9 +40,8 @@ export function CountdownTimer({ scheduledStartTime, status, onCommenced, isActi
     }, 1000);
 
     return () => {
-      active = false;
-      clearTimeout(deferTimer);
       clearInterval(interval);
+      if (initTimer) clearTimeout(initTimer);
     };
   }, [scheduledStartTime, status]);
 

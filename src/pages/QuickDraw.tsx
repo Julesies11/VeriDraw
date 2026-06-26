@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
 import { ArrowLeft, Play, Trophy, Sparkles, Upload, List, Save, Copy } from 'lucide-react';
@@ -382,7 +382,7 @@ export function QuickDraw() {
               <textarea
                 rows={8}
                 value={itemsText}
-                onChange={(e) => setItemsText(e.target.value)}
+                onChange={(e) => updateItemsFromText(e.target.value)}
                 placeholder="Sarah Jones&#10;David Miller&#10;Emma Smith"
                 className="w-full px-4 py-3 rounded-xl border border-border bg-input text-foreground text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring transition-all resize-y"
               />

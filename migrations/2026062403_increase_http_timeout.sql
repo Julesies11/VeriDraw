@@ -1,5 +1,5 @@
 -- migrations/2026062403_increase_http_timeout.sql
--- Increases the timeout_ms parameter for pg_net to 150 seconds (150,000ms) 
+-- Increases the timeout_milliseconds parameter for pg_net to 150 seconds (150,000ms) 
 -- to match the background execution threshold of Supabase Edge Functions.
 
 CREATE OR REPLACE FUNCTION public.vd_check_and_activate_scheduled_draws()
@@ -49,7 +49,7 @@ BEGIN
                 'x-veridraw-cron-secret', cron_secret
             ),
             body := jsonb_build_object('event_id', r.id),
-            timeout_ms := 150000
+            timeout_milliseconds := 150000
         );
     END LOOP;
 
@@ -71,7 +71,7 @@ BEGIN
                 'x-veridraw-cron-secret', cron_secret
             ),
             body := jsonb_build_object('event_id', r.id),
-            timeout_ms := 150000
+            timeout_milliseconds := 150000
         );
 
         -- Bump updated_at in the database to prevent immediate double triggers on the next cron run

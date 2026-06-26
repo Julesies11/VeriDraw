@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { AuthProvider } from '@/auth/providers/supabase-provider';
 import { MainLayout } from '@/layouts/MainLayout';

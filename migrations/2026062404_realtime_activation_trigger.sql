@@ -80,7 +80,7 @@ BEGIN
                     'x-veridraw-cron-secret', cron_secret
                 ),
                 body := jsonb_build_object('event_id', NEW.id),
-                timeout_ms := 150000
+                timeout_milliseconds := 150000
             );
         EXCEPTION WHEN OTHERS THEN
             RAISE WARNING 'Failed to enqueue auto-draw Edge Function trigger: %', SQLERRM;
@@ -139,7 +139,7 @@ BEGIN
                     'x-veridraw-cron-secret', cron_secret
                 ),
                 body := jsonb_build_object('event_id', r.id),
-                timeout_ms := 150000
+                timeout_milliseconds := 150000
             );
         EXCEPTION WHEN OTHERS THEN
             RAISE WARNING 'Failed to enqueue auto-draw recovery trigger: %', SQLERRM;

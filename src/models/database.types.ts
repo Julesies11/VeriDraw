@@ -9291,9 +9291,11 @@ export type Database = {
           created_at: string
           created_by: string | null
           duplicated_from: string | null
+          enable_public_link: boolean
           event_name: string
           id: string
           item_type: string
+          require_viewer_login: boolean
           scheduled_start_time: string
           select_count: number
           slug: string
@@ -9305,9 +9307,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duplicated_from?: string | null
+          enable_public_link?: boolean
           event_name: string
           id?: string
           item_type: string
+          require_viewer_login?: boolean
           scheduled_start_time: string
           select_count?: number
           slug: string
@@ -9319,9 +9323,11 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           duplicated_from?: string | null
+          enable_public_link?: boolean
           event_name?: string
           id?: string
           item_type?: string
+          require_viewer_login?: boolean
           scheduled_start_time?: string
           select_count?: number
           slug?: string

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { eventsApi } from '@/api/events';
 import { useDirtyTracker } from '@/hooks/useDirtyTracker';
@@ -86,12 +86,14 @@ export function CreateEvent() {
         description?: string;
         item_type?: string;
         select_count?: number;
+        require_viewer_login?: boolean;
+        enable_public_link?: boolean;
       };
       items?: string[];
     } | null;
 
     if (state && state.duplicateFrom) {
-      const { id, name, description, item_type, select_count } = state.duplicateFrom;
+      const { id, name, description, item_type, select_count, require_viewer_login, enable_public_link } = state.duplicateFrom;
       const items = state.items || [];
       const timer = setTimeout(() => {
         setFormData((prev) => ({
@@ -102,6 +104,8 @@ export function CreateEvent() {
           item_type: item_type || 'custom',
           select_count: select_count || 1,
           itemsText: items.join('\n'),
+          require_viewer_login: require_viewer_login ?? false,
+          enable_public_link: enable_public_link ?? true,
         }));
         setDuplicatedFromId(id);
       }, 0);
@@ -194,6 +198,8 @@ export function CreateEvent() {
           item_type: formData.item_type,
           select_count: selectCountNum,
           duplicated_from: duplicatedFromId,
+          require_viewer_login: formData.require_viewer_login,
+          enable_public_link: formData.enable_public_link,
         },
         itemLines
       );

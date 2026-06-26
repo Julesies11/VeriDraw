@@ -1,22 +1,6 @@
--- migrations/2026062405_clean_scheduler_architecture.sql
--- Cleans up the database triggers and reverts RLS policies back to owner-only.
--- Consolidates all status transition and orchestration logic into the Edge Function.
+-- migrations/2026062601_fix_pg_net_timeout_parameter.sql
+-- Updates public.vd_check_and_activate_scheduled_draws() to correct the pg_net timeout parameter name.
 
--- 1. Drop the status change trigger and function
-DROP TRIGGER IF EXISTS trigger_vd_events_status_change ON public.vd_events;
-DROP FUNCTION IF EXISTS public.vd_events_status_trigger_fn();
-
--- 2. Drop the security check trigger and function
-DROP TRIGGER IF EXISTS trigger_vd_events_security_check ON public.vd_events;
-DROP FUNCTION IF EXISTS public.vd_events_security_check_fn();
-
--- 3. Revert RLS policies on public.vd_events back to owner-only updates
-DROP POLICY IF EXISTS update_vd_events ON public.vd_events;
-CREATE POLICY update_vd_events ON public.vd_events
-    FOR UPDATE TO authenticated USING (auth.uid() = created_by) WITH CHECK (auth.uid() = created_by);
-
--- 4. Simplify the pg_cron check function to only invoke the Edge Function
--- The Edge Function itself will handle transitioning status to 'active'.
 CREATE OR REPLACE FUNCTION public.vd_check_and_activate_scheduled_draws()
 RETURNS void AS $$
 DECLARE

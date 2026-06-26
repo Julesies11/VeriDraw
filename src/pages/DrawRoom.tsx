@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useDrawSession } from '@/hooks/useDrawSession';
 import { drawApi } from '@/api/draw';
@@ -17,6 +17,7 @@ export function DrawRoom() {
   const { slugOrId } = useParams<{ slugOrId: string }>();
   const { user, loading: loadingAuth } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   // Local state for wheel rotation and animation
   const [rotationAngle, setRotationAngle] = useState(0);
@@ -149,6 +150,14 @@ export function DrawRoom() {
   });
 
   const eventId = event?.id;
+
+  // Guard check for private events (require_viewer_login = true)
+  useEffect(() => {
+    if (loading || loadingAuth || !event) return;
+    if (event.require_viewer_login && !user) {
+      navigate(ROUTES.LOGIN, { state: { from: location.pathname } });
+    }
+  }, [event, user, loading, loadingAuth, navigate, location.pathname]);
 
   // Sync items ref for use in animation callbacks without triggering sub loops
   useEffect(() => {
@@ -322,6 +331,8 @@ export function DrawRoom() {
           description: '',
           item_type: event.item_type,
           select_count: event.select_count,
+          require_viewer_login: event.require_viewer_login,
+          enable_public_link: event.enable_public_link,
         },
         items: itemValues
       }

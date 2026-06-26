@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Users, CheckCircle, Copy } from 'lucide-react';
 
 interface InviteModalProps {

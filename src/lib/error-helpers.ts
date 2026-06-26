@@ -39,7 +39,8 @@ export const logErrorToDb = async (
       .insert({
         error_message: errorMessage,
         error_stack: errorStack,
-        context,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        context: context as any,
         user_id: userId,
       });
 

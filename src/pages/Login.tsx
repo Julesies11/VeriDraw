@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
 import { Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
@@ -14,6 +14,7 @@ export function Login() {
     signInWithMagicLink,
   } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [isMagicLink, setIsMagicLink] = useState(false);
@@ -64,7 +65,7 @@ export function Login() {
     setError('');
     setSuccessMsg('');
     setLoading(true);
-
+ 
     try {
       if (isSignUp) {
         if (!formData.name.trim()) {
@@ -78,7 +79,8 @@ export function Login() {
         setSuccessMsg('Check your email for the magic sign-in link!');
       } else {
         await login(formData.email, formData.password);
-        navigate(ROUTES.DASHBOARD);
+        const state = location.state as { from?: string } | null;
+        navigate(state?.from || ROUTES.DASHBOARD);
       }
     } catch (err: unknown) {
       console.error(err);
