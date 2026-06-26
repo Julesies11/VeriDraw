@@ -6,7 +6,7 @@ import { drawApi } from '@/api/draw';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import { deriveWheelState } from '@/components/roulette/roulette-helpers';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Users, CheckCircle, RefreshCw, Trophy, Play, Info, Copy, Download, Calendar, List, Sparkles, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, RefreshCw, Trophy, Play, Pause, Info, Copy, Download, Calendar, List, Sparkles, Share2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 import { CountdownTimer } from '@/components/draw/CountdownTimer';
@@ -26,6 +26,13 @@ export function DrawRoom() {
   const [localWinner, setLocalWinner] = useState<string | null>(null);
   const [showWinnerBanner, setShowWinnerBanner] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+
+  // Replay playback states
+  const [isReplaying, setIsReplaying] = useState(false);
+  const [replayStep, setReplayStep] = useState(1);
+  const [replayStatus, setReplayStatus] = useState<'idle' | 'spinning' | 'landed'>('idle');
+  const [isReplayPaused, setIsReplayPaused] = useState(false);
+  const [replaySpeed, setReplaySpeed] = useState<1 | 2>(1);
   
   // Auditable reactions overlay state
   const reactionsRef = useRef<ReactionsOverlayRef>(null);
@@ -144,8 +151,14 @@ export function DrawRoom() {
     refetch,
   } = useDrawSession({
     slugOrId: slugOrId || '',
-    onSpinTriggered: animateSpin,
-    onSpinStarted: handleLocalSpinStart,
+    onSpinTriggered: useCallback((targetAngle: number, durationMs: number, winnerId: string) => {
+      if (isReplaying) return;
+      animateSpin(targetAngle, durationMs, winnerId);
+    }, [isReplaying, animateSpin]),
+    onSpinStarted: useCallback(() => {
+      if (isReplaying) return;
+      handleLocalSpinStart();
+    }, [isReplaying, handleLocalSpinStart]),
     onReactionReceived: triggerLocalReaction,
   });
 
@@ -171,6 +184,7 @@ export function DrawRoom() {
 
   // Listen to session status changes from DB to trigger the spin animation (supports host-less draws)
   useEffect(() => {
+    if (isReplaying) return;
     if (!session) return;
 
     const winnerId = session.active_winner_id;
@@ -225,7 +239,7 @@ export function DrawRoom() {
         refetch();
       }
     }
-  }, [session, animateSpin, refetch, handleDismissWinner]);
+  }, [session, animateSpin, refetch, handleDismissWinner, isReplaying]);
 
   // Stable callback invoked by CountdownTimer when the scheduled time expires.
   // Triggers auto-draw activation; guarded internally against double-calls.
@@ -409,36 +423,196 @@ export function DrawRoom() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  // Replay helper derivations
+  const orderedWinners = useMemo(() => {
+    return [...items]
+      .filter((item) => item.is_selected && item.selection_order != null)
+      .sort((a, b) => (a.selection_order || 0) - (b.selection_order || 0));
+  }, [items]);
+
+  const replayItems = useMemo(() => {
+    if (!isReplaying) return items;
+    return items.map((item) => {
+      const winnerIdx = orderedWinners.findIndex((w) => w.id === item.id);
+      if (winnerIdx !== -1) {
+        const orderNum = winnerIdx + 1;
+        const isSelected = orderNum < replayStep || (orderNum === replayStep && replayStatus === 'landed');
+        return {
+          ...item,
+          is_selected: isSelected,
+          selection_order: isSelected ? orderNum : null,
+          selected_at: isSelected ? item.selected_at : null,
+        };
+      }
+      return {
+        ...item,
+        is_selected: false,
+        selection_order: null,
+        selected_at: null,
+      };
+    });
+  }, [isReplaying, items, orderedWinners, replayStep, replayStatus]);
+
+  const replaySession = useMemo(() => {
+    if (!isReplaying) return null;
+    const currentWinner = orderedWinners[replayStep - 1];
+    return {
+      current_status: replayStatus,
+      active_winner_id: (replayStatus === 'spinning' || replayStatus === 'landed') && currentWinner ? currentWinner.id : null,
+    };
+  }, [isReplaying, replayStep, replayStatus, orderedWinners]);
+
   // Display name of winner
   const winnerItem = useMemo(() => {
-    const activeWinnerId = localWinner || session?.active_winner_id;
+    const activeItems = isReplaying ? replayItems : items;
+    const activeSession = isReplaying ? replaySession : session;
+    const activeWinnerId = localWinner || activeSession?.active_winner_id;
     if (!activeWinnerId) return null;
-    return items.find((item) => item.id === activeWinnerId);
-  }, [localWinner, session, items]);
+    return activeItems.find((item) => item.id === activeWinnerId);
+  }, [localWinner, session, items, isReplaying, replayItems, replaySession]);
 
   // Derive the wheel state and round info using our pure testable helper
   const { wheelItems } = useMemo(() => {
-    return deriveWheelState(items, session);
-  }, [items, session]);
+    const activeItems = isReplaying ? replayItems : items;
+    const activeSession = isReplaying ? replaySession : session;
+    return deriveWheelState(activeItems, activeSession);
+  }, [items, session, isReplaying, replayItems, replaySession]);
 
   // Use wheelItems as our visual items representation for the RouletteWheel component
   const visualItems = wheelItems;
 
   // Group selection history list: show items when they are selected, excluding the active winner ONLY while spinning to preserve surprise
   const selectedItems = useMemo(() => {
-    const activeWinnerId = session?.active_winner_id;
-    const isSpinning = session?.current_status === 'spinning';
-    return items
+    const activeItems = isReplaying ? replayItems : items;
+    const activeSession = isReplaying ? replaySession : session;
+    const activeWinnerId = activeSession?.active_winner_id;
+    const isSpinning = activeSession?.current_status === 'spinning';
+    return activeItems
       .filter((item) => item.is_selected && (!isSpinning || item.id !== activeWinnerId))
       .sort((a, b) => (a.selection_order || 0) - (b.selection_order || 0));
-  }, [items, session]);
+  }, [items, session, isReplaying, replayItems, replaySession]);
 
   // Group remaining items in pool
   const remainingItems = useMemo(() => {
-    const activeWinnerId = session?.active_winner_id;
-    const isSpinningOrLanded = session?.current_status === 'spinning' || session?.current_status === 'landed';
-    return items.filter((item) => !item.is_selected || (isSpinningOrLanded && item.id === activeWinnerId));
-  }, [items, session]);
+    const activeItems = isReplaying ? replayItems : items;
+    const activeSession = isReplaying ? replaySession : session;
+    const activeWinnerId = activeSession?.active_winner_id;
+    const isSpinningOrLanded = activeSession?.current_status === 'spinning' || activeSession?.current_status === 'landed';
+    return activeItems.filter((item) => !item.is_selected || (isSpinningOrLanded && item.id === activeWinnerId));
+  }, [items, session, isReplaying, replayItems, replaySession]);
+
+  const startReplay = useCallback(() => {
+    setIsReplaying(true);
+    setReplayStep(1);
+    setReplayStatus('idle');
+    setIsReplayPaused(false);
+    setRotationAngle(0);
+    setLocalWinner(null);
+    setShowWinnerBanner(false);
+    setIsSpinning(false);
+  }, []);
+
+  const stopReplay = useCallback(() => {
+    setIsReplaying(false);
+    setReplayStep(1);
+    setReplayStatus('idle');
+    setIsReplayPaused(false);
+    setRotationAngle(0);
+    setLocalWinner(null);
+    setShowWinnerBanner(false);
+    setIsSpinning(false);
+  }, []);
+
+  // URL parameters replay trigger
+  useEffect(() => {
+    if (loading || loadingAuth || !event || event.status !== 'completed') return;
+    
+    const searchParams = new URLSearchParams(location.search);
+    const mode = searchParams.get('mode');
+    const replay = searchParams.get('replay');
+    
+    if (mode === 'replay' || replay === 'true') {
+      const timer = setTimeout(() => {
+        startReplay();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [event, loading, loadingAuth, location.search, startReplay]);
+
+  // Handle active replay step simulation timer loop
+  useEffect(() => {
+    if (!isReplaying || isReplayPaused || replayStatus !== 'idle') return;
+
+    if (replayStep > orderedWinners.length) {
+      // Replay finished
+      const timer = setTimeout(() => {
+        stopReplay();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+
+    const currentWinner = orderedWinners[replayStep - 1];
+    if (!currentWinner) return;
+
+    // Wait before starting the spin
+    const timer = setTimeout(() => {
+      // Find index of the winner in remaining items pool before this spin
+      const activeItemsBeforeSpin = items.filter(
+        (item) => !item.is_selected || (item.selection_order != null && item.selection_order >= replayStep)
+      );
+      const winnerIndex = activeItemsBeforeSpin.findIndex((item) => item.id === currentWinner.id);
+      if (winnerIndex !== -1) {
+        const sliceAngle = 360 / Math.max(1, activeItemsBeforeSpin.length);
+        const targetAngle = rotationAngle + 360 * 5 + (winnerIndex * sliceAngle) + (sliceAngle / 2);
+        const duration = 4000 / replaySpeed;
+
+        setReplayStatus('spinning');
+        animateSpin(targetAngle, duration, currentWinner.id);
+
+        const spinTimer = setTimeout(() => {
+          setReplayStatus('landed');
+          setLocalWinner(currentWinner.id);
+          setShowWinnerBanner(true);
+          confetti({
+            particleCount: 150,
+            spread: 80,
+            origin: { y: 0.6 },
+          });
+
+          const bannerTimer = setTimeout(() => {
+            // Dismiss winner: rotate back to 0
+            setRotationAngle(0);
+            setShowWinnerBanner(false);
+
+            // Wait for reset animation
+            const resetTimer = setTimeout(() => {
+              setLocalWinner(null);
+              setReplayStatus('idle');
+              setReplayStep((prev) => prev + 1);
+            }, 500 / replaySpeed);
+
+            return () => clearTimeout(resetTimer);
+          }, 2500 / replaySpeed);
+
+          return () => clearTimeout(bannerTimer);
+        }, duration);
+
+        return () => clearTimeout(spinTimer);
+      }
+    }, 1500 / replaySpeed);
+
+    return () => clearTimeout(timer);
+  }, [isReplaying, isReplayPaused, replayStatus, replayStep, replaySpeed, orderedWinners, items, animateSpin, rotationAngle, stopReplay]);
+
+  // If host resets draw while replaying, exit replay mode
+  useEffect(() => {
+    if (isReplaying && event && event.status !== 'completed') {
+      const timer = setTimeout(() => {
+        stopReplay();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [event, isReplaying, stopReplay]);
 
   // Formulate Live Audit Trail Logs based on draw history timestamps
   const auditLogs = useMemo(() => {
@@ -587,7 +761,11 @@ export function DrawRoom() {
             <span>{viewerCount} watching</span>
           </div>
 
-          {event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
+          {isReplaying ? (
+            <div className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-2sm font-bold uppercase animate-pulse">
+              Replay Active
+            </div>
+          ) : event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
             <>
               <div className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-2sm font-bold uppercase">
                 Completed
@@ -721,7 +899,7 @@ export function DrawRoom() {
           <div className="glass border border-border/40 rounded-2xl p-5 space-y-4 flex flex-col justify-between min-h-[480px]">
             <div>
               <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
-                {event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
+                {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
                   <>
                     <List className="w-4.5 h-4.5 text-primary" />
                     Entries Roster ({items.length})
@@ -734,7 +912,7 @@ export function DrawRoom() {
                 )}
               </h2>
               <div className="divide-y divide-border/20 max-h-[300px] overflow-y-auto pr-1">
-                {event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
+                {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
                   items.map((item, idx) => (
                     <div key={item.id} className="py-2.5 flex items-center justify-between text-2sm animate-fade-in">
                       <span className="font-semibold">{item.item_value}</span>
@@ -791,7 +969,7 @@ export function DrawRoom() {
 
           {/* Center Panel: Roulette Wheel */}
           <div className="lg:col-span-1 flex flex-col items-center justify-center p-6 glass border border-border/40 rounded-2xl min-h-[550px] relative overflow-hidden">
-            {event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
+            {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
               <div className="w-full flex flex-col items-center justify-start space-y-5 animate-fade-in">
                 <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <Trophy className="w-6 h-6 text-yellow-500" />
@@ -906,10 +1084,26 @@ export function DrawRoom() {
                       <Copy className="w-4.5 h-4.5" />
                       Duplicate & Run Again
                     </button>
+                    <button
+                      onClick={startReplay}
+                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4 fill-current text-primary" />
+                      Watch Replay
+                    </button>
                   </div>
                 ) : (
-                  <div className="w-full max-w-xs p-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center border border-border/20 shrink-0">
-                    This draw is complete and the results are verified.
+                  <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
+                    <button
+                      onClick={startReplay}
+                      className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4 fill-current text-white" />
+                      Watch Replay
+                    </button>
+                    <div className="w-full p-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center border border-border/20 shrink-0">
+                      This draw is complete and the results are verified.
+                    </div>
                   </div>
                 )}
               </div>
@@ -917,9 +1111,11 @@ export function DrawRoom() {
               <>
                 {/* Header Round Marker */}
                 <div className="absolute top-4 z-20 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-2xs font-bold uppercase tracking-wider">
-                  {event.status === 'completed' && !isSpinning && !showWinnerBanner
-                    ? 'Drawing Concluded! 🏆'
-                    : `Round ${Math.min(event.select_count, selectedItems.length + 1)} of ${event.select_count}`
+                  {isReplaying
+                    ? `Replay: Round ${Math.min(event.select_count, replayStep)} of ${event.select_count}`
+                    : event.status === 'completed' && !isSpinning && !showWinnerBanner
+                      ? 'Drawing Concluded! 🏆'
+                      : `Round ${Math.min(event.select_count, selectedItems.length + 1)} of ${event.select_count}`
                   }
                 </div>
 
@@ -1021,6 +1217,55 @@ export function DrawRoom() {
               >
                 <Download className="w-3.5 h-3.5 text-muted-foreground" />
                 Download Draw History
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating replay controls overlay */}
+      {isReplaying && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="glass border border-primary/20 rounded-2xl shadow-xl p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center animate-pulse">
+                <Play className="w-5 h-5 fill-current" />
+              </div>
+              <div>
+                <div className="text-2sm font-bold text-foreground">Replay Mode</div>
+                <div className="text-3xs text-muted-foreground font-semibold uppercase tracking-wider">
+                  Winner {Math.min(orderedWinners.length, replayStep)} of {orderedWinners.length}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsReplayPaused((prev) => !prev)}
+                className="flex items-center justify-center p-2.5 rounded-xl bg-secondary hover:bg-border/40 text-foreground transition-all cursor-pointer shadow-sm active:scale-95"
+                title={isReplayPaused ? 'Resume Replay' : 'Pause Replay'}
+              >
+                {isReplayPaused ? (
+                  <Play className="w-4 h-4 fill-current text-green-600 dark:text-green-400" />
+                ) : (
+                  <Pause className="w-4 h-4 fill-current text-primary" />
+                )}
+              </button>
+              
+              <button
+                onClick={() => setReplaySpeed((prev) => (prev === 1 ? 2 : 1))}
+                className="flex items-center justify-center px-3 py-1.5 rounded-xl bg-secondary hover:bg-border/40 text-foreground text-2xs font-bold transition-all cursor-pointer min-w-[50px] shadow-sm active:scale-95"
+                title="Toggle Speed"
+              >
+                {replaySpeed}x
+              </button>
+              
+              <button
+                onClick={stopReplay}
+                className="flex items-center justify-center px-4 py-1.5 rounded-xl bg-primary text-white text-2xs font-bold hover:opacity-90 transition-all cursor-pointer shadow-sm active:scale-95"
+                title="Skip Replay"
+              >
+                Skip
               </button>
             </div>
           </div>
