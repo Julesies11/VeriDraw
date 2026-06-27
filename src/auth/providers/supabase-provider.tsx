@@ -133,15 +133,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signInWithMagicLink = async (email: string) => {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}`,
+    const { data, error } = await supabase.functions.invoke('vd-send-magic-link', {
+      body: {
+        email,
+        redirectTo: `${window.location.origin}`,
       },
     });
-    if (error) {
+    if (error || (data && data.error)) {
       setLoading(false);
-      throw error;
+      throw new Error(error?.message || data?.error || 'Failed to send magic link');
     }
     setLoading(false);
   };
