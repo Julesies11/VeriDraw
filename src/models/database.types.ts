@@ -9297,6 +9297,7 @@ export type Database = {
           item_type: string
           require_viewer_login: boolean
           scheduled_start_time: string
+          seed: string | null
           select_count: number
           slug: string
           status: string
@@ -9313,6 +9314,7 @@ export type Database = {
           item_type: string
           require_viewer_login?: boolean
           scheduled_start_time: string
+          seed?: string | null
           select_count?: number
           slug: string
           status?: string
@@ -9329,6 +9331,7 @@ export type Database = {
           item_type?: string
           require_viewer_login?: boolean
           scheduled_start_time?: string
+          seed?: string | null
           select_count?: number
           slug?: string
           status?: string

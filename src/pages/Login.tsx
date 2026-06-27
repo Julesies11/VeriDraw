@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
 import { Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
-import { getFriendlyErrorMessage } from '@/lib/error-helpers';
+import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 
 export function Login() {
   const {
@@ -43,6 +43,7 @@ export function Login() {
     } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Google sign-in failed.'));
+      void logErrorToDb(err, { context: 'Login.handleGoogleSignIn' });
       setLoading(false);
     }
   };
@@ -56,6 +57,7 @@ export function Login() {
     } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Microsoft sign-in failed.'));
+      void logErrorToDb(err, { context: 'Login.handleMicrosoftSignIn' });
       setLoading(false);
     }
   };
@@ -85,6 +87,7 @@ export function Login() {
     } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Authentication failed. Please verify credentials.'));
+      void logErrorToDb(err, { context: 'Login.handleSubmit', isSignUp, isMagicLink });
     } finally {
       setLoading(false);
     }
@@ -97,9 +100,11 @@ export function Login() {
         <div className="inline-flex w-12 h-12 rounded-xl bg-gradient-to-tr from-primary to-accent items-center justify-center text-white shadow-md mb-2">
           <Sparkles className="w-6 h-6 animate-pulse" />
         </div>
-        <h1 className="text-3xl font-black font-heading tracking-tight">Welcome to VeriDraw</h1>
+        <h1 className="text-3xl font-black font-heading tracking-tight">
+          {isSignUp ? 'Create your free VeriDraw account.' : 'Welcome to VeriDraw'}
+        </h1>
         <p className="text-sm text-muted-foreground">
-          {isSignUp ? 'Create your account to spin the wheel' : 'Sign in to access your drawing dashboard'}
+          {isSignUp ? 'Host live drawing events, invite spectators, and manage your draw history.' : 'Sign in to access your drawing dashboard.'}
         </p>
       </div>
 
@@ -239,18 +244,40 @@ export function Login() {
 
         {/* Toggle link */}
         <p className="text-2sm text-center text-muted-foreground">
-          {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <button
-            onClick={() => {
-              setIsSignUp((prev) => !prev);
-              setIsMagicLink(false);
-              setError('');
-              setSuccessMsg('');
-            }}
-            className="font-semibold text-primary hover:underline cursor-pointer"
-          >
-            {isSignUp ? 'Sign In' : 'Sign Up'}
-          </button>
+          {isSignUp ? (
+            <>
+              Already have an account?{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(false);
+                  setIsMagicLink(false);
+                  setError('');
+                  setSuccessMsg('');
+                }}
+                className="font-semibold text-primary hover:underline cursor-pointer"
+              >
+                Sign In
+              </button>
+            </>
+          ) : (
+            <>
+              Don't have an account? It's free to{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSignUp(true);
+                  setIsMagicLink(false);
+                  setError('');
+                  setSuccessMsg('');
+                }}
+                className="font-semibold text-primary hover:underline cursor-pointer"
+              >
+                create one
+              </button>
+              .
+            </>
+          )}
         </p>
       </div>
     </div>

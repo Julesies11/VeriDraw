@@ -273,7 +273,7 @@ export function CreateEvent() {
               required
               value={formData.name}
               onChange={handleChange}
-              placeholder="e.g. Surf Club Volunteer Draw"
+              placeholder="e.g. Club Volunteer Draw"
               className="w-full px-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
             />
           </div>

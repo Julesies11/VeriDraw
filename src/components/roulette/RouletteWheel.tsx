@@ -12,7 +12,7 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
   const radius = size / 2;
   const center = size / 2;
 
-  const [pointerRotation, setPointerRotation] = useState(0);
+  const pointerRef = useRef<HTMLDivElement>(null);
   const [renderedAngle, setRenderedAngle] = useState(() => {
     // If we mount in a non-spinning state, initialize directly to the target rotationAngle
     return isSpinning ? 0 : rotationAngle;
@@ -116,7 +116,9 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
         if (Math.abs(pointerRotationRef.current) < 0.1) {
           pointerRotationRef.current = 0;
         }
-        setPointerRotation(pointerRotationRef.current);
+        if (pointerRef.current) {
+          pointerRef.current.style.transform = `rotate(${pointerRotationRef.current}deg)`;
+        }
 
         if (progress < 1) {
           animFrameRef.current = requestAnimationFrame(loop);
@@ -131,7 +133,9 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
         cancelAnimationFrame(animFrameRef.current);
       }
       startAngleRef.current = rotationAngle;
-      setPointerRotation(0);
+      if (pointerRef.current) {
+        pointerRef.current.style.transform = 'rotate(0deg)';
+      }
       pointerRotationRef.current = 0;
     }
 
@@ -287,9 +291,10 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
 
       {/* Target Arrow Pointer (Points down to 12 o'clock sector) */}
       <div 
+        ref={pointerRef}
         className="absolute top-[-10px] z-30 flex flex-col items-center"
         style={{
-          transform: `rotate(${pointerRotation}deg)`,
+          transform: 'rotate(0deg)',
           transformOrigin: 'top center',
         }}
       >

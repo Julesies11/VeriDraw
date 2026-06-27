@@ -243,13 +243,10 @@ export const eventsApi = {
     return generateSecureCode(length);
   },
 
-  /**
-   * Create a completed Quick Draw event with pre-selected items.
-   * Retries automatically if unique key constraint is violated.
-   */
   async createCompletedQuickDraw(
     preferredSlug: string,
     items: Array<{ item_value: string; is_selected: boolean; selection_order?: number }>,
+    seed: string,
     duplicatedFromSlug?: string | null
   ) {
     // 1. Get current authenticated user
@@ -281,6 +278,7 @@ export const eventsApi = {
         created_by: creatorId,
         updated_by: creatorId,
         duplicated_from: parentId,
+        seed: seed,
       };
 
       const { data: event, error: eventError } = await supabase

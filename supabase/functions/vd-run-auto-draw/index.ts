@@ -7,6 +7,48 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-veridraw-cron-secret",
 };
 
+// Seeded PRNG (mulberry32)
+function mulberry32(a: number) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+}
+
+// Generate simple 32-bit hash from string seed
+function cyrb128(str: string): number[] {
+  let h1 = 1779033703, h2 = 3024733117, h3 = 3362453659, h4 = 50249339;
+  for (let i = 0, k; i < str.length; i++) {
+    k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [(h1^h2^h3^h4)>>>0, (h2^h1)>>>0, (h3^h1)>>>0, (h4^h1)>>>0];
+}
+
+// Seeded Fisher-Yates Shuffle
+function seededShuffle<T>(array: T[], seedStr: string): T[] {
+  const shuffled = [...array];
+  const seedHash = cyrb128(seedStr)[0];
+  const rand = mulberry32(seedHash);
+  
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const temp = shuffled[i];
+    shuffled[i] = shuffled[j];
+    shuffled[j] = temp;
+  }
+  return shuffled;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -14,23 +56,23 @@ serve(async (req) => {
   }
 
   const startTime = Date.now();
-  const MAX_EXECUTION_TIME_MS = 120000; // 2-minute safety limit to prevent Edge Function timeout
+  const MAX_EXECUTION_TIME_MS = 120000; // 2-minute safety limit
 
   let event_id: string | undefined;
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const cronSecret = Deno.env.get("CRON_SECRET") ?? "";
 
-    if (!supabaseUrl || !supabaseServiceKey || !cronSecret) {
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey || !cronSecret) {
       return new Response(
         JSON.stringify({ error: "Missing environment variables on server (including CRON_SECRET)." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 1. Parse JSON Body
     try {
       const body = await req.json();
       event_id = body?.event_id;
@@ -53,7 +95,7 @@ serve(async (req) => {
     // 2. Fetch event metadata
     const { data: event, error: eventError } = await serviceClient
       .from("vd_events")
-      .select("id, status, select_count, scheduled_start_time")
+      .select("id, status, select_count, scheduled_start_time, created_by, seed")
       .eq("id", event_id)
       .single();
 
@@ -86,24 +128,18 @@ serve(async (req) => {
 
     // Server-side Clock-drift Tolerance check for public activation requests
     if (!isSystemCron) {
-      // Decode JWT if Authorization header exists to see if the caller is the host (creator)
       const authHeader = req.headers.get("Authorization");
       let userId: string | null = null;
       if (authHeader) {
         try {
-          const parts = authHeader.split(" ");
-          if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
-            const token = parts[1];
-            const tokenParts = token.split(".");
-            if (tokenParts.length === 3) {
-              const payloadBase64 = tokenParts[1].replace(/-/g, "+").replace(/_/g, "/");
-              const payloadJson = atob(payloadBase64);
-              const payload = JSON.parse(payloadJson);
-              userId = payload.sub || null;
-            }
+          const token = authHeader.replace(/^bearer\s+/i, "");
+          const tempServiceClient = createClient(supabaseUrl, supabaseAnonKey);
+          const { data: { user }, error: authError } = await tempServiceClient.auth.getUser(token);
+          if (!authError && user) {
+            userId = user.id;
           }
         } catch (e) {
-          console.error("JWT Decode error in vd-run-auto-draw:", e);
+          console.error("JWT verification error in vd-run-auto-draw:", e);
         }
       }
 
@@ -112,7 +148,7 @@ serve(async (req) => {
       if (!isHost) {
         const scheduledTime = new Date(event.scheduled_start_time).getTime();
         const currentTime = Date.now();
-        const DRIFT_TOLERANCE_MS = 60000; // 60 seconds tolerance to absorb device clock discrepancies
+        const DRIFT_TOLERANCE_MS = 60000;
 
         if (currentTime < scheduledTime - DRIFT_TOLERANCE_MS) {
           return new Response(
@@ -123,28 +159,66 @@ serve(async (req) => {
       }
     }
 
-    // 4. Activate event if it is currently scheduled (atomic check-and-set to prevent parallel loops)
+    let seed = event.seed;
+
+    // 4. Activation Phase: Pre-generate deterministic selection orders if currently scheduled
     if (event.status === "scheduled") {
-      console.log(`Activating scheduled event: ${event_id}`);
-      const { data: updateData, error: activateError } = await serviceClient
+      console.log(`[Activation] Initializing deterministic seed and shuffling for event ${event_id}`);
+      
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      seed = Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      // Fetch all items
+      const { data: allItems, error: loadAllError } = await serviceClient
+        .from("vd_event_items")
+        .select("id, item_value")
+        .eq("event_id", event_id)
+        .order("display_order", { ascending: true });
+
+      if (loadAllError || !allItems || allItems.length === 0) {
+        throw new Error(`Failed to load event items for initialization: ${loadAllError?.message}`);
+      }
+
+      // Shuffle deterministically
+      const shuffledItems = seededShuffle(allItems, seed);
+
+      // Save order
+      const updates = shuffledItems.map((item, index) => 
+        serviceClient
+          .from("vd_event_items")
+          .update({ selection_order: index + 1 })
+          .eq("id", item.id)
+      );
+
+      const updateResults = await Promise.all(updates);
+      const updateError = updateResults.find(r => r.error);
+      if (updateError) {
+        throw new Error(`Failed to save deterministic selection orders: ${updateError.error?.message}`);
+      }
+
+      // Update event status to active (atomic status transition check)
+      const { data: updatedEvents, error: activateError } = await serviceClient
         .from("vd_events")
         .update({
           status: "active",
+          seed: seed,
           updated_at: new Date().toISOString(),
         })
         .eq("id", event_id)
         .eq("status", "scheduled")
-        .select("id");
+        .select();
 
       if (activateError) {
         throw new Error(`Failed to activate event status: ${activateError.message}`);
       }
 
-      // If no rows were updated, it means another request won the race
-      if (!updateData || updateData.length === 0) {
-        console.log(`Event ${event_id} was already activated by another concurrent request.`);
+      if (!updatedEvents || updatedEvents.length === 0) {
+        console.log(`[Concurrency] Event ${event_id} was already activated by another runner. Aborting execution loop.`);
         return new Response(
-          JSON.stringify({ success: true, message: "Draw event is already being activated by another instance." }),
+          JSON.stringify({ success: true, message: "Draw event was already activated and is being run by another process." }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -152,7 +226,7 @@ serve(async (req) => {
 
     console.log(`Starting auto-draw process for event ${event_id}. Target count: ${event.select_count}`);
 
-    // 3. Load currently selected items count
+    // 5. Load currently selected items count
     const { data: selectedItems, error: selectedError } = await serviceClient
       .from("vd_event_items")
       .select("id, selection_order")
@@ -166,10 +240,10 @@ serve(async (req) => {
     let currentOrder = selectedItems ? selectedItems.length : 0;
     const targetCount = event.select_count;
 
-    // 4. Load remaining unselected items
+    // 6. Load remaining unselected items (ordered by display_order for wheel alignment index mapping)
     const { data: unselectedItems, error: unselectedError } = await serviceClient
       .from("vd_event_items")
-      .select("id, item_value")
+      .select("id, item_value, selection_order")
       .eq("event_id", event_id)
       .eq("is_selected", false)
       .order("display_order", { ascending: true });
@@ -211,7 +285,6 @@ serve(async (req) => {
       if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
         console.log("Approaching Edge Function execution limit. Triggering self-resume call.");
         
-        // Spawn parallel execution for remaining items (fire-and-forget call)
         fetch(req.url, {
           method: "POST",
           headers: {
@@ -221,7 +294,6 @@ serve(async (req) => {
           body: JSON.stringify({ event_id }),
         }).catch((err) => console.error("Failed to self-trigger resume:", err));
 
-        // Sleep 150ms to guarantee network dispatch before this instance freezes
         await new Promise((resolve) => setTimeout(resolve, 150));
 
         return new Response(
@@ -230,18 +302,24 @@ serve(async (req) => {
         );
       }
 
-      const randomIndex = Math.floor(Math.random() * remainingItems.length);
-      const selectedItem = remainingItems[randomIndex];
-      currentOrder++;
+      // Select next item deterministically by selection_order
+      const sortedByOrder = [...remainingItems].sort(
+        (a, b) => (a.selection_order || 0) - (b.selection_order || 0)
+      );
+      const selectedItem = sortedByOrder[0];
 
-      console.log(`Round ${currentOrder}: Selected "${selectedItem.item_value}"`);
+      if (!selectedItem || selectedItem.selection_order == null) {
+        throw new Error("Deterministic selection order is corrupted or missing inside loop");
+      }
+
+      currentOrder = selectedItem.selection_order;
+      console.log(`Round ${currentOrder}: Selected "${selectedItem.item_value}" (deterministic)`);
 
       // A. Update item status to selected
       const { error: updateItemError } = await serviceClient
         .from("vd_event_items")
         .update({
           is_selected: true,
-          selection_order: currentOrder,
           selected_at: new Date().toISOString(),
         })
         .eq("id", selectedItem.id);
@@ -251,19 +329,18 @@ serve(async (req) => {
       }
 
       // B. Update event live session status to 'spinning'
+      const randomIndex = remainingItems.findIndex(i => i.id === selectedItem.id);
       const N = remainingItems.length;
       const sliceAngle = 360 / N;
       const spinDuration = 4000;
       
-      // Calculate target angle to align selected slice with indicator pointer
       const targetBaseAngle = (randomIndex * sliceAngle) + Math.random() * (sliceAngle - 2);
       
-      // Make target angle cumulative (at least 5 revolutions from last spin angle)
       const K = Math.ceil((lastAngle + 1800 - targetBaseAngle) / 360);
       const targetAngle = 360 * K + targetBaseAngle;
       lastAngle = targetAngle;
 
-      const { error: sessionSpinError } = await serviceClient
+      const { data: updatedSessions, error: sessionSpinError } = await serviceClient
         .from("vd_event_sessions")
         .update({
           current_status: "spinning",
@@ -272,10 +349,17 @@ serve(async (req) => {
           spin_duration_ms: spinDuration,
           last_spin_angle: targetAngle,
         })
-        .eq("event_id", event_id);
+        .eq("event_id", event_id)
+        .in("current_status", ["idle", "landed"])
+        .select();
 
       if (sessionSpinError) {
         throw new Error(`Failed to initiate spin state: ${sessionSpinError.message}`);
+      }
+
+      if (!updatedSessions || updatedSessions.length === 0) {
+        console.log(`[Concurrency] Session for event ${event_id} was already updated. Aborting auto-draw loop.`);
+        break;
       }
 
       // C. Sleep for spin duration (4 seconds)
@@ -300,7 +384,7 @@ serve(async (req) => {
       remainingItems = remainingItems.filter(item => item.id !== selectedItem.id);
     }
 
-    // 5. Complete Draw Event
+    // 7. Complete Draw Event
     console.log(`Auto-draw complete for event ${event_id}. Marking completed.`);
 
     const { error: completeEventError } = await serviceClient

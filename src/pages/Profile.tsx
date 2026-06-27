@@ -5,7 +5,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { ROUTES } from '@/config/routes.config';
 import { supabase } from '@/lib/supabase';
 import { ArrowLeft, Save, Upload, User as UserIcon, CheckCircle, AlertCircle, Loader2, Camera } from 'lucide-react';
-import { getFriendlyErrorMessage } from '@/lib/error-helpers';
+import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 
 export function Profile() {
   const navigate = useNavigate();
@@ -130,6 +130,7 @@ export function Profile() {
     } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Failed to update profile settings.'));
+      void logErrorToDb(err, { context: 'Profile.handleSave' });
     } finally {
       setUploading(false);
     }

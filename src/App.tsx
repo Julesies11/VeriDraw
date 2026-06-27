@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { AuthProvider } from '@/auth/providers/supabase-provider';
 import { MainLayout } from '@/layouts/MainLayout';
@@ -8,7 +8,14 @@ import { DrawRoom } from '@/pages/DrawRoom';
 import { QuickDraw } from '@/pages/QuickDraw';
 import { Login } from '@/pages/Login';
 import { Profile } from '@/pages/Profile';
+import { VerifyDraw } from '@/pages/VerifyDraw';
 import { ROUTES } from '@/config/routes.config';
+
+// Vanity /join/:code route redirecting to /draw/:code
+function JoinRedirect() {
+  const { code } = useParams();
+  return <Navigate to={`/draw/${code}`} replace />;
+}
 
 export function App() {
   return (
@@ -29,11 +36,18 @@ export function App() {
               {/* Profile Settings */}
               <Route path={ROUTES.PROFILE} element={<Profile />} />
 
+              {/* Verify Draw */}
+              <Route path={ROUTES.VERIFY} element={<VerifyDraw />} />
+              <Route path={ROUTES.VERIFY_ROOM_PATTERN} element={<VerifyDraw />} />
+
               {/* Create Drawing event */}
               <Route path={ROUTES.CREATE_EVENT} element={<CreateEvent />} />
 
               {/* Live drawing room */}
               <Route path={ROUTES.DRAW_ROOM_PATTERN} element={<DrawRoom />} />
+
+              {/* Vanity join redirect */}
+              <Route path="/join/:code" element={<JoinRedirect />} />
 
               {/* Redirect fallback */}
               <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace />} />

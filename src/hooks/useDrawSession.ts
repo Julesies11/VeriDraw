@@ -122,10 +122,26 @@ export function useDrawSession({ slugOrId, onSpinTriggered, onSpinStarted, onRea
         table: 'vd_event_items',
         filter: `event_id=eq.${eventId}`,
       },
-      async () => {
-        console.log('[Realtime] Items DB change, re-fetching items...');
-        const updatedItems = await eventsApi.listItems(eventId);
-        setItems(updatedItems);
+      (payload) => {
+        console.log('[Realtime] Items DB change:', payload.eventType);
+        if (payload.eventType === 'INSERT') {
+          const newItem = payload.new as EventItemRow;
+          setItems((prev) => {
+            const exists = prev.some((item) => item.id === newItem.id);
+            if (exists) return prev;
+            return [...prev, newItem].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedItem = payload.new as EventItemRow;
+          setItems((prev) =>
+            prev.map((item) => (item.id === updatedItem.id ? { ...item, ...updatedItem } : item))
+          );
+        } else if (payload.eventType === 'DELETE') {
+          const deletedId = payload.old?.id;
+          if (deletedId) {
+            setItems((prev) => prev.filter((item) => item.id !== deletedId));
+          }
+        }
       }
     );
 

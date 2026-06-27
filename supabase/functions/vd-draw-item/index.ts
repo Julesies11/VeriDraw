@@ -7,6 +7,48 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Seeded PRNG (mulberry32)
+function mulberry32(a: number) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+}
+
+// Generate simple 32-bit hash from string seed
+function cyrb128(str: string): number[] {
+  let h1 = 1779033703, h2 = 3024733117, h3 = 3362453659, h4 = 50249339;
+  for (let i = 0, k; i < str.length; i++) {
+    k = str.charCodeAt(i);
+    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
+    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
+    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
+    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
+  }
+  h1 = Math.imul(h3 ^ (h1 >>> 18), 597399067);
+  h2 = Math.imul(h4 ^ (h2 >>> 22), 2869860233);
+  h3 = Math.imul(h1 ^ (h3 >>> 17), 951274213);
+  h4 = Math.imul(h2 ^ (h4 >>> 19), 2716044179);
+  return [(h1^h2^h3^h4)>>>0, (h2^h1)>>>0, (h3^h1)>>>0, (h4^h1)>>>0];
+}
+
+// Seeded Fisher-Yates Shuffle
+function seededShuffle<T>(array: T[], seedStr: string): T[] {
+  const shuffled = [...array];
+  const seedHash = cyrb128(seedStr)[0];
+  const rand = mulberry32(seedHash);
+  
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const temp = shuffled[i];
+    shuffled[i] = shuffled[j];
+    shuffled[j] = temp;
+  }
+  return shuffled;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -19,7 +61,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
       return new Response(
         JSON.stringify({ error: "Missing environment variables on server." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -43,7 +85,7 @@ serve(async (req) => {
       );
     }
 
-    // 1. Authenticate user using their JWT (decoded offline since Gateway enforces signature validation)
+    // 1. Authenticate user using their JWT via the Supabase Auth client to verify the signature
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -52,35 +94,23 @@ serve(async (req) => {
       );
     }
 
-    let userId: string | null = null;
-    try {
-      const parts = authHeader.split(" ");
-      if (parts.length === 2 && parts[0].toLowerCase() === "bearer") {
-        const token = parts[1];
-        const tokenParts = token.split(".");
-        if (tokenParts.length === 3) {
-          const payloadBase64 = tokenParts[1].replace(/-/g, "+").replace(/_/g, "/");
-          const payloadJson = atob(payloadBase64);
-          const payload = JSON.parse(payloadJson);
-          userId = payload.sub || null;
-        }
-      }
-    } catch (e) {
-      console.error("JWT Decode error:", e);
-    }
+    const token = authHeader.replace(/^bearer\s+/i, "");
+    const tempServiceClient = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: { user }, error: authError } = await tempServiceClient.auth.getUser(token);
 
-    if (!userId) {
+    if (authError || !user) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized user JWT" }),
+        JSON.stringify({ error: "Unauthorized user JWT: signature verification failed" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const userId = user.id;
 
-    // 2. Load the event and session using service role client to check ownership, status, and session concurrency
+    // 2. Load the event and session using service role client
     const serviceClient = createClient(supabaseUrl, supabaseServiceKey);
     
     const [eventResult, sessionResult] = await Promise.all([
-      serviceClient.from("vd_events").select("created_by, status, select_count").eq("id", event_id).single(),
+      serviceClient.from("vd_events").select("created_by, status, select_count, seed").eq("id", event_id).single(),
       serviceClient.from("vd_event_sessions").select("current_status, last_spin_angle").eq("event_id", event_id).single()
     ]);
 
@@ -117,10 +147,83 @@ serve(async (req) => {
       );
     }
 
-    // 3. Fetch unselected items for this event (ordered by display_order to match client list)
-    const { data: items, error: itemsError } = await serviceClient
+    let currentStatus = event.status;
+    let seed = event.seed;
+
+    // 3. Activation Phase: Pre-generate deterministic selection orders if currently scheduled
+    if (currentStatus === "scheduled") {
+      console.log(`[Activation] Initializing deterministic seed and shuffling for event ${event_id}`);
+      
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      seed = Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      const { data: allItems, error: loadAllError } = await serviceClient
+        .from("vd_event_items")
+        .select("id, item_value")
+        .eq("event_id", event_id)
+        .order("display_order", { ascending: true });
+
+      if (loadAllError || !allItems || allItems.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Failed to load event items for initialization" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const shuffledItems = seededShuffle(allItems, seed);
+
+      const updates = shuffledItems.map((item, index) => 
+        serviceClient
+          .from("vd_event_items")
+          .update({ selection_order: index + 1 })
+          .eq("id", item.id)
+      );
+
+      const updateResults = await Promise.all(updates);
+      const updateError = updateResults.find(r => r.error);
+      if (updateError) {
+        return new Response(
+          JSON.stringify({ error: "Failed to pre-assign deterministic selection orders" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Try to atomically activate the event status from scheduled to active
+      const { data: updatedEvents, error: eventActiveError } = await serviceClient
+        .from("vd_events")
+        .update({
+          status: "active",
+          seed: seed,
+          updated_by: userId,
+        })
+        .eq("id", event_id)
+        .eq("status", "scheduled")
+        .select();
+
+      if (eventActiveError) {
+        return new Response(
+          JSON.stringify({ error: "Failed to transition event to active state" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!updatedEvents || updatedEvents.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "Draw event was already activated or is currently being run" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      currentStatus = "active";
+    }
+
+    // 4. Fetch unselected items for this event (ordered by display_order to match client wheel)
+    const { data: remainingItems, error: itemsError } = await serviceClient
       .from("vd_event_items")
-      .select("id, item_value")
+      .select("id, item_value, selection_order")
       .eq("event_id", event_id)
       .eq("is_selected", false)
       .order("display_order", { ascending: true });
@@ -132,39 +235,33 @@ serve(async (req) => {
       );
     }
 
-    if (!items || items.length === 0) {
+    if (!remainingItems || remainingItems.length === 0) {
       return new Response(
         JSON.stringify({ error: "No unselected items remaining in this draw" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 4. Select a random item
-    const randomIndex = Math.floor(Math.random() * items.length);
-    const selectedItem = items[randomIndex];
+    // 5. Select the next item deterministically by minimum selection_order
+    const sortedByOrder = [...remainingItems].sort(
+      (a, b) => (a.selection_order || 0) - (b.selection_order || 0)
+    );
+    const selectedItem = sortedByOrder[0];
 
-    // Determine the selection order
-    const { count: selectedCount, error: countError } = await serviceClient
-      .from("vd_event_items")
-      .select("id", { count: "exact", head: true })
-      .eq("event_id", event_id)
-      .eq("is_selected", true);
-
-    if (countError) {
+    if (!selectedItem || selectedItem.selection_order == null) {
       return new Response(
-        JSON.stringify({ error: "Failed to determine selection order" }),
+        JSON.stringify({ error: "Deterministic selection order is corrupted or missing" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const nextOrder = (selectedCount ?? 0) + 1;
+    const nextOrder = selectedItem.selection_order;
 
-    // 5. Update the selected item
+    // 6. Update the selected item in the database
     const { error: updateItemError } = await serviceClient
       .from("vd_event_items")
       .update({
         is_selected: true,
-        selection_order: nextOrder,
         selected_at: new Date().toISOString(),
         updated_by: userId,
       })
@@ -177,19 +274,19 @@ serve(async (req) => {
       );
     }
 
-    // 6. Update the event session state
-    const N = items.length;
+    // 7. Calculate target spin angle matching display_order indices
+    const randomIndex = remainingItems.findIndex(i => i.id === selectedItem.id);
+    const N = remainingItems.length;
     const sliceAngle = 360 / N;
     const spinDuration = 4000;
-    // Calculate target angle to align selected slice with indicator pointer
     const targetBaseAngle = (randomIndex * sliceAngle) + Math.random() * (sliceAngle - 2);
     
-    // Make target angle cumulative (at least 5 revolutions from last spin angle)
     const lastAngle = Number(session?.last_spin_angle || 0);
     const K = Math.ceil((lastAngle + 1800 - targetBaseAngle) / 360);
     const targetAngle = 360 * K + targetBaseAngle;
 
-    const { error: sessionError } = await serviceClient
+    // 8. Update the event session state
+    const { error: sessionErrorUpdate } = await serviceClient
       .from("vd_event_sessions")
       .update({
         current_status: "spinning",
@@ -201,30 +298,20 @@ serve(async (req) => {
       })
       .eq("event_id", event_id);
 
-    if (sessionError) {
+    if (sessionErrorUpdate) {
       return new Response(
         JSON.stringify({ error: "Failed to update draw session state" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // 7. Check if we've completed the selection targets or selected all items
-    const totalSelected = nextOrder;
-    const isAllSelected = totalSelected >= event.select_count || items.length === 1;
+    // 9. Check if we've completed the selection targets
+    const isAllSelected = nextOrder >= event.select_count || remainingItems.length === 1;
     if (isAllSelected) {
       await serviceClient
         .from("vd_events")
         .update({
           status: "completed",
-          updated_by: userId,
-        })
-        .eq("id", event_id);
-    } else if (event.status === "scheduled") {
-      // Mark event as active once draws start
-      await serviceClient
-        .from("vd_events")
-        .update({
-          status: "active",
           updated_by: userId,
         })
         .eq("id", event_id);

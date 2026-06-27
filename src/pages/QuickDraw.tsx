@@ -6,8 +6,9 @@ import { ArrowLeft, Play, Trophy, Sparkles, Upload, List, Save, Copy } from 'luc
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import confetti from 'canvas-confetti';
 import { eventsApi } from '@/api/events';
-import { getFriendlyErrorMessage } from '@/lib/error-helpers';
-import { generateSecureCode } from '@/lib/crypto';
+import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
+import { generateSecureCode, seededShuffle } from '@/lib/crypto';
+import { GoLiveModal } from '@/components/modals/GoLiveModal';
 
 interface QuickDrawItem {
   id: string;
@@ -39,6 +40,8 @@ export function QuickDraw() {
   const [completedDrawId, setCompletedDrawId] = useState<string | null>(null);
   const [completedTimestamp, setCompletedTimestamp] = useState<string | null>(null);
   const [duplicatedFromSlug, setDuplicatedFromSlug] = useState<string | null>(null);
+  const [seed, setSeed] = useState<string | null>(null);
+  const [isGoLiveModalOpen, setIsGoLiveModalOpen] = useState(false);
 
   // Derived lists for rendering
   const activeItems = useMemo(() => {
@@ -76,12 +79,51 @@ export function QuickDraw() {
     setShowWinnerBanner(false);
     setLocalWinner(null);
 
-    // Pick random index from active (unselected) items
-    const randomIndex = Math.floor(Math.random() * activeItems.length);
-    const selected = activeItems[randomIndex];
+    let activeSeed = seed;
+    let currentItems = [...items];
 
-    // Compute target angle (multiple full rotations + index alignment offset + slight random center offset)
-    const count = activeItems.length;
+    // If seed doesn't exist, we generate it and pre-shuffle the items deterministically
+    if (!activeSeed) {
+      const bytes = new Uint8Array(32);
+      window.crypto.getRandomValues(bytes);
+      activeSeed = Array.from(bytes)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      setSeed(activeSeed);
+
+      // Deterministically shuffle
+      const shuffled = seededShuffle(items, activeSeed);
+      currentItems = items.map((item) => {
+        const idx = shuffled.findIndex((s) => s.id === item.id);
+        return {
+          ...item,
+          selection_order: idx + 1,
+        };
+      });
+      setItems(currentItems);
+    }
+
+    const currentSelected = currentItems.filter((i) => i.is_selected).length;
+    const nextOrder = currentSelected + 1;
+
+    // Find the pre-calculated winner
+    const selected = currentItems.find((item) => item.selection_order === nextOrder);
+    if (!selected) {
+      setError('Failed to resolve deterministic selection.');
+      return;
+    }
+
+    // Find index of the selected item in the remaining active items list (ordered by original display/index order)
+    const currentActiveItems = currentItems.filter((item) => !item.is_selected);
+    const randomIndex = currentActiveItems.findIndex((item) => item.id === selected.id);
+
+    if (randomIndex === -1) {
+      setError('Winner not found in remaining entries.');
+      return;
+    }
+
+    // Compute target angle
+    const count = currentActiveItems.length;
     const sliceAngle = 360 / count;
     const offset = Math.random() * (sliceAngle - 2) + 1;
     const targetAngle = rotationAngle + 360 * 5 + (randomIndex * sliceAngle) + offset;
@@ -97,14 +139,13 @@ export function QuickDraw() {
       setShowWinnerBanner(true);
 
       // Mark item as selected
-      const selectionCount = items.filter((i) => i.is_selected).length + 1;
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === selected.id
-            ? { ...item, is_selected: true, selection_order: selectionCount }
-            : item
-        )
+      const selectionCount = currentSelected + 1;
+      const updatedItems = currentItems.map((item) =>
+        item.id === selected.id
+          ? { ...item, is_selected: true, selection_order: selectionCount }
+          : item
       );
+      setItems(updatedItems);
 
       // Woo factor confetti
       confetti({
@@ -113,29 +154,22 @@ export function QuickDraw() {
         origin: { y: 0.6 },
       });
 
-      const targetCount = selectCount === '' ? 1 : selectCount;
       if (selectionCount === targetCount) {
         const randomId = `VD-${generateSecureCode(6)}`;
         const utcStr = new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC';
         setCompletedDrawId(randomId);
         setCompletedTimestamp(utcStr);
 
-        // Capture current selected items state
-        const finalItems = items.map((item) =>
-          item.id === selected.id
-            ? { ...item, is_selected: true, selection_order: selectionCount }
-            : item
-        );
-
         // Async save to database
         eventsApi
           .createCompletedQuickDraw(
             randomId,
-            finalItems.map((item) => ({
+            updatedItems.map((item) => ({
               item_value: item.item_value,
               is_selected: item.is_selected,
               selection_order: item.selection_order ?? undefined,
             })),
+            activeSeed,
             duplicatedFromSlug
           )
           .then((event) => {
@@ -145,10 +179,11 @@ export function QuickDraw() {
           })
           .catch((err) => {
             console.error('[QuickDraw DB Save Error]', err);
+            void logErrorToDb(err, { context: 'QuickDraw.handleSpin.saveCompleted', seed: activeSeed });
           });
       }
     }, spinDuration);
-  }, [isSpinning, activeItems, selectCount, items, rotationAngle, spinDuration, duplicatedFromSlug]);
+  }, [isSpinning, activeItems, selectCount, items, rotationAngle, spinDuration, duplicatedFromSlug, seed]);
 
   // Parse itemsText into items array
   const updateItemsFromText = (text: string) => {
@@ -215,6 +250,7 @@ export function QuickDraw() {
     setShowWinnerBanner(false);
     setCompletedDrawId(null);
     setCompletedTimestamp(null);
+    setSeed(null);
     setItems((prev) =>
       prev.map((item) => ({
         ...item,
@@ -236,12 +272,14 @@ export function QuickDraw() {
     setShowWinnerBanner(false);
     setCompletedDrawId(null);
     setCompletedTimestamp(null);
+    setSeed(null);
     setDuplicatedFromSlug(null);
   };
 
   // Duplicate settings + entries (removes selected state but keeps entries intact)
   const handleDuplicateDraw = () => {
     setDuplicatedFromSlug(completedDrawId);
+    setSeed(null);
     handleReset();
   };
 
@@ -251,7 +289,12 @@ export function QuickDraw() {
   };
 
   // Convert local draw into database backed live session
-  const handleGoLive = async () => {
+  const handleGoLive = async (
+    customEventName: string,
+    requireViewerLogin: boolean,
+    startTime: string = new Date().toISOString(),
+    status: 'active' | 'scheduled' = 'active'
+  ) => {
     const lines = items.map((i) => i.item_value);
     if (lines.length === 0) {
       setError('Please provide at least one item before going live.');
@@ -272,14 +315,17 @@ export function QuickDraw() {
         // Logged in: Create live room directly and redirect
         const newEvent = await eventsApi.create(
           {
-            event_name: 'Quick Draw Live',
-            scheduled_start_time: new Date().toISOString(),
+            event_name: customEventName,
+            scheduled_start_time: startTime,
             item_type: 'custom',
             select_count: targetCount,
+            require_viewer_login: requireViewerLogin,
+            status: status,
           },
           lines
         );
-        navigate(ROUTES.DRAW_ROOM(newEvent.slug));
+        setIsGoLiveModalOpen(false);
+        navigate(ROUTES.DRAW_ROOM(newEvent.slug), { state: { autoOpenInvite: true } });
       } else {
         // Anonymous: Save candidate state to sessionStorage and navigate to Login
         sessionStorage.setItem(
@@ -287,8 +333,13 @@ export function QuickDraw() {
           JSON.stringify({
             items: lines,
             selectCount: targetCount,
+            eventName: customEventName,
+            requireViewerLogin: requireViewerLogin,
+            scheduledStartTime: startTime,
+            status: status,
           })
         );
+        setIsGoLiveModalOpen(false);
         navigate(ROUTES.LOGIN);
       }
     } catch (err: unknown) {
@@ -322,12 +373,23 @@ export function QuickDraw() {
         </div>
 
         <button
-          onClick={handleGoLive}
+          onClick={() => {
+            if (items.length === 0) {
+              setError('Please provide at least one item before going live.');
+              return;
+            }
+            const targetCount = selectCount === '' ? 1 : selectCount;
+            if (targetCount > items.length) {
+              setError(`Select count (${targetCount}) cannot exceed the number of items supplied (${items.length}).`);
+              return;
+            }
+            setIsGoLiveModalOpen(true);
+          }}
           disabled={loading || items.length === 0}
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer whitespace-nowrap"
         >
           <Save className="w-4.5 h-4.5" />
-          {loading ? 'Creating...' : 'Go Live & Invite Viewers'}
+          Go Live & Invite Viewers
         </button>
       </div>
 
@@ -502,6 +564,10 @@ export function QuickDraw() {
                       </button>
                     )}
                   </div>
+                  <div>Seed:</div>
+                  <div className="font-mono text-right text-foreground truncate max-w-[180px] select-all" title={seed || ''}>
+                    {seed || 'N/A'}
+                  </div>
                   <div>Timestamp:</div>
                   <div className="text-right text-foreground whitespace-nowrap">{completedTimestamp || 'N/A'}</div>
                   <div>Entries:</div>
@@ -622,6 +688,16 @@ export function QuickDraw() {
           )}
         </div>
       </div>
+      {/* Go Live Confirmation Modal */}
+      {isGoLiveModalOpen && (
+        <GoLiveModal
+          isOpen={isGoLiveModalOpen}
+          onClose={() => setIsGoLiveModalOpen(false)}
+          user={user}
+          onConfirm={handleGoLive}
+          loading={loading}
+        />
+      )}
     </div>
   );
 }

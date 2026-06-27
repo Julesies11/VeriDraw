@@ -73,13 +73,6 @@ export function CountdownTimer({ scheduledStartTime, status, onCommenced, isActi
         <div className="text-5xl font-black font-mono tracking-wider text-primary select-none drop-shadow-[0_0_15px_rgba(30,96,145,0.25)]">
           {formatCountdown(timeLeft)}
         </div>
-        <p className="text-2xs text-muted-foreground font-semibold flex items-center justify-center gap-1.5">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/40 animate-pulse" />
-          Scheduled to start: {new Date(scheduledStartTime).toLocaleString(undefined, {
-            dateStyle: 'medium',
-            timeStyle: 'short',
-          })} ({Intl.DateTimeFormat().resolvedOptions().timeZone})
-        </p>
       </div>
     );
   }
@@ -99,12 +92,8 @@ export function CountdownTimer({ scheduledStartTime, status, onCommenced, isActi
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
         <span>Draw is ready to commence!</span>
       </div>
-      <p className="text-2xs text-muted-foreground font-semibold">
-        Scheduled start: {new Date(scheduledStartTime).toLocaleString(undefined, {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        })} ({Intl.DateTimeFormat().resolvedOptions().timeZone})
-      </p>
     </div>
   );
 }
+
+export default CountdownTimer;

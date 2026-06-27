@@ -6,7 +6,7 @@ import { drawApi } from '@/api/draw';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import { deriveWheelState } from '@/components/roulette/roulette-helpers';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Users, CheckCircle, RefreshCw, Trophy, Play, Pause, Info, Copy, Download, Calendar, List, Sparkles, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Trophy, Play, Pause, Info, Copy, Download, List, Sparkles, Share2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 import { CountdownTimer } from '@/components/draw/CountdownTimer';
@@ -145,9 +145,6 @@ export function DrawRoom() {
     session,
     loading,
     viewerCount,
-    broadcastSpin,
-    broadcastSpinStart,
-    broadcastReaction,
     refetch,
   } = useDrawSession({
     slugOrId: slugOrId || '',
@@ -162,7 +159,6 @@ export function DrawRoom() {
     onReactionReceived: triggerLocalReaction,
   });
 
-  const eventId = event?.id;
 
   // Guard check for private events (require_viewer_login = true)
   useEffect(() => {
@@ -171,6 +167,20 @@ export function DrawRoom() {
       navigate(ROUTES.LOGIN, { state: { from: location.pathname } });
     }
   }, [event, user, loading, loadingAuth, navigate, location.pathname]);
+
+  // Auto-open invite modal if redirected from a Go Live transition
+  useEffect(() => {
+    if (loading || !event) return;
+    const state = location.state as { autoOpenInvite?: boolean } | null;
+    if (state?.autoOpenInvite) {
+      // Queue state update to prevent synchronous cascading renders warning
+      setTimeout(() => {
+        setIsInviteModalOpen(true);
+      }, 0);
+      // Clear navigation state to prevent modal reopening on page reloads/manual refreshes
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [loading, event, location.state, location.pathname, navigate]);
 
   // Sync items ref for use in animation callbacks without triggering sub loops
   useEffect(() => {
@@ -270,38 +280,21 @@ export function DrawRoom() {
     return false;
   }, [user, event]);
 
-  // Handle Host Spin Trigger
+  // Handle Host Spin Trigger (Commences the continuous auto-draw loop)
   const handleHostSpin = useCallback(async () => {
-    if (isSpinning || !eventId) return;
+    if (!event || event.status !== 'scheduled' || isSpinning || isActivating) return;
 
     try {
-      handleLocalSpinStart();
-      broadcastSpinStart();
-
-      const data = await drawApi.drawItem(eventId);
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      const { target_angle, spin_duration_ms, item } = data;
-
-      broadcastSpin(target_angle, spin_duration_ms, item.id);
-      animateSpin(target_angle, spin_duration_ms, item.id);
-
-      setTimeout(async () => {
-        try {
-          await drawApi.updateSessionStatus(eventId, 'landed', item.id);
-        } catch (err: unknown) {
-          console.error('[DB Update landed Error]', err);
-        }
-      }, spin_duration_ms);
-
+      setIsActivating(true);
+      await drawApi.triggerAutoDraw(event.id);
+      await refetch();
     } catch (err: unknown) {
-      setIsSpinning(false);
-      logErrorToDb(err, { context: 'DrawRoom.handleHostSpin', eventId });
-      alert(getFriendlyErrorMessage(err, 'Failed to spin.'));
+      logErrorToDb(err, { context: 'DrawRoom.handleHostSpin', eventId: event.id });
+      alert(getFriendlyErrorMessage(err, 'Failed to start drawing.'));
+    } finally {
+      setIsActivating(false);
     }
-  }, [eventId, isSpinning, handleLocalSpinStart, broadcastSpinStart, broadcastSpin, animateSpin]);
+  }, [event, isSpinning, isActivating, refetch]);
 
   // NOTE: Auto-activation is now handled via the CountdownTimer onCommenced callback (handleAutoActivate).
 
@@ -353,30 +346,8 @@ export function DrawRoom() {
     });
   };
 
-  // Handle Host Reset Trigger
-  const handleHostReset = async () => {
-    if (!eventId || isSpinning) return;
-    if (!confirm('Are you sure you want to reset all selections? This deletes selection order history.')) return;
 
-    clearSessionTimeouts();
 
-    try {
-      await drawApi.resetEvent(eventId);
-      setRotationAngle(0);
-      setLocalWinner(null);
-      setShowWinnerBanner(false);
-      refetch();
-    } catch (err: unknown) {
-      logErrorToDb(err, { context: 'DrawRoom.handleHostReset', eventId });
-      alert(getFriendlyErrorMessage(err, 'Failed to reset.'));
-    }
-  };
-
-  // Broadcast Reaction Trigger
-  const handleReactionClick = (type: string) => {
-    triggerLocalReaction(type);
-    broadcastReaction(type);
-  };
 
   // Generate deterministic cryptographically-secure simulation seed
   const generatedSeed = useMemo(() => {
@@ -417,10 +388,34 @@ export function DrawRoom() {
 
   const handleCopyLink = () => {
     if (!inviteCode) return;
-    const link = `${window.location.origin}/draw/${inviteCode.toLowerCase()}`;
+    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleShare = async () => {
+    if (!inviteCode) return;
+    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
+    
+    const shareData = {
+      title: 'VeriDraw Live Event',
+      text: `Join my live drawing event on VeriDraw! Use invite code: ${inviteCode}`,
+      url: link,
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Error sharing:', err);
+          handleCopyLink();
+        }
+      }
+    } else {
+      handleCopyLink();
+    }
   };
 
   // Replay helper derivations
@@ -786,71 +781,105 @@ export function DrawRoom() {
       {event.status === 'scheduled' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left / Center Column: Invitation Details and Timer */}
-          <div className="lg:col-span-2 glass border border-border/40 rounded-2xl p-6 flex flex-col justify-between items-center text-center min-h-[420px]">
-            <div className="max-w-md w-full space-y-5 py-6">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary animate-pulse">
-                <Calendar className="w-7 h-7" />
-              </div>
-              <div className="space-y-1.5">
-                <h3 className="text-2sm font-extrabold tracking-widest uppercase text-muted-foreground">
-                  Live Selection Commences In
-                </h3>
+          <div className="lg:col-span-2 glass border border-border/40 rounded-2xl p-6 flex flex-col justify-between items-center text-center min-h-[460px]">
+            <div className="max-w-md w-full space-y-6 py-4">
+              {/* Countdown Timer Header */}
+              <div className="space-y-1">
+                <span className="text-2sm font-bold text-foreground block">
+                  Draw Starts In
+                </span>
                 <CountdownTimer
                   scheduledStartTime={event.scheduled_start_time}
                   status={event.status}
                   onCommenced={handleAutoActivate}
                   isActivating={isActivating}
                 />
+                <div className="text-2xs text-muted-foreground font-medium pt-1">
+                  Scheduled for:<br />
+                  <span className="font-bold text-foreground">
+                    {new Date(event.scheduled_start_time).toLocaleDateString(undefined, {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}, {new Date(event.scheduled_start_time).toLocaleTimeString(undefined, {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })} ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                  </span>
+                </div>
               </div>
 
-              {/* Share Panel */}
-              <div className="space-y-3 w-full text-left">
-                {/* Short Invite Code */}
-                <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl flex items-center justify-between text-left">
-                  <div>
-                    <span className="text-3xs font-extrabold uppercase text-muted-foreground block tracking-wider">Short Invite Code</span>
-                    <span className="text-lg font-black font-mono tracking-wider text-primary block">{inviteCode}</span>
+              {/* Share/Invite Box */}
+              <div className="border-t border-border/10 pt-5 space-y-4 text-left">
+                <h4 className="text-sm font-black font-heading text-foreground">Invite Spectators</h4>
+                
+                {/* Invite Link */}
+                <div className="space-y-1.5">
+                  <span className="text-2xs font-extrabold text-foreground block">Invite Link</span>
+                  <span className="text-3xs text-muted-foreground block font-medium">Anyone with this link can join the event.</span>
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/join/${inviteCode.toUpperCase()}`}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2sm font-mono focus:outline-none select-all"
+                  />
+                  
+                  <div className="flex gap-2.5">
+                    <button
+                      onClick={handleCopyLink}
+                      aria-label="Copy Direct Invite Link"
+                      className={`flex-1 py-2.5 rounded-xl font-bold text-2sm transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        copiedLink
+                          ? 'bg-green-500 text-white'
+                          : 'bg-primary text-primary-foreground hover:opacity-90 shadow-md shadow-primary/10'
+                      }`}
+                    >
+                      {copiedLink ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      {copiedLink ? 'Copied' : 'Copy Link'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShare}
+                      aria-label="Share Direct Invite Link"
+                      className="flex-1 py-2.5 rounded-xl font-bold text-2sm bg-secondary hover:bg-border/20 border border-border text-foreground transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <Share2 className="w-4 h-4" />
+                      Share
+                    </button>
                   </div>
-                  <button
-                    onClick={handleCopyCode}
-                    className={`p-2 rounded-lg border transition-all cursor-pointer ${
-                      copiedCode
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : 'bg-background hover:bg-border/20 border-border/60 text-muted-foreground hover:text-foreground'
-                    }`}
-                    title="Copy Invite Code"
-                  >
-                    {copiedCode ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </button>
+                  {copiedLink && (
+                    <span className="text-3xs font-bold text-green-500 block text-center animate-pulse">
+                      ✅ Invite link copied to clipboard.
+                    </span>
+                  )}
                 </div>
 
-                {/* Public Link */}
-                <div className="p-4 bg-secondary/40 border border-border/20 rounded-xl flex items-center justify-between text-left">
-                  <div>
-                    <span className="text-3xs font-extrabold uppercase text-muted-foreground block tracking-wider">Public Link</span>
-                    <span className="text-2sm font-mono truncate max-w-[280px] block font-semibold">
-                      {`${window.location.origin}/draw/${inviteCode.toLowerCase()}`}
+                {/* Event Code */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-2xs font-extrabold text-foreground block">Event Code</span>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleCopyCode}
+                      className="text-2xl font-black font-mono tracking-wider text-primary hover:opacity-85 transition-opacity cursor-pointer focus:outline-none select-all"
+                      title="Click to copy code"
+                      aria-label="Copy Invite Code"
+                    >
+                      {inviteCode}
+                    </button>
+                    <span className="text-3xs text-muted-foreground font-medium">
+                      Already on VeriDraw? Join using this code.
                     </span>
                   </div>
-                  <button
-                    onClick={handleCopyLink}
-                    className={`p-2 rounded-lg border transition-all cursor-pointer ${
-                      copiedLink
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : 'bg-background hover:bg-border/20 border-border/60 text-muted-foreground hover:text-foreground'
-                    }`}
-                    title="Copy Invite Link"
-                  >
-                    {copiedLink ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </button>
+                  {copiedCode && <span className="text-3xs font-bold text-green-500 block animate-pulse">Code copied!</span>}
                 </div>
               </div>
             </div>
 
             {/* Host Controls */}
             {isHost && (
-              <div className="border-t border-border/20 pt-5 w-full flex justify-center">
+              <div className="border-t border-border/10 pt-5 w-full flex justify-center">
                 <button
+                  disabled={isActivating}
                   onClick={async () => {
                     try {
                       setIsActivating(true);
@@ -863,10 +892,10 @@ export function DrawRoom() {
                       setIsActivating(false);
                     }
                   }}
-                  className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-95 transition-all cursor-pointer"
+                  className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                 >
-                  <Play className="w-5 h-5 fill-current" />
-                  Commence Draw Now
+                  <Play className="w-4 h-4 fill-current" />
+                  Start Draw Now
                 </button>
               </div>
             )}
@@ -938,31 +967,6 @@ export function DrawRoom() {
                     )}
                   </>
                 )}
-              </div>
-            </div>
-
-            {/* Bottom engagement reactions panel */}
-            <div className="border-t border-border/20 pt-4 space-y-2.5">
-              <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">Audience reactions</span>
-              <div className="flex gap-2.5">
-                <button
-                  onClick={() => handleReactionClick('fair')}
-                  className="flex-1 py-2 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground text-sm font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none"
-                >
-                  👍 <span className="text-2xs font-bold text-muted-foreground">Fair</span>
-                </button>
-                <button
-                  onClick={() => handleReactionClick('exciting')}
-                  className="flex-1 py-2 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground text-sm font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none"
-                >
-                  🎉 <span className="text-2xs font-bold text-muted-foreground">Exciting</span>
-                </button>
-                <button
-                  onClick={() => handleReactionClick('verify')}
-                  className="flex-1 py-2 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground text-sm font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer select-none"
-                >
-                  🔍 <span className="text-2xs font-bold text-muted-foreground">Verify</span>
-                </button>
               </div>
             </div>
           </div>
@@ -1043,6 +1047,10 @@ export function DrawRoom() {
                         </button>
                       )}
                     </div>
+                    <div>Seed:</div>
+                    <div className="font-mono text-right text-foreground truncate max-w-[180px] select-all" title={event.seed || ''}>
+                      {event.seed || 'N/A'}
+                    </div>
                     <div>Timestamp:</div>
                     <div className="text-right text-foreground whitespace-nowrap">
                       {selectedItems.length > 0 && selectedItems[selectedItems.length - 1].selected_at
@@ -1066,6 +1074,14 @@ export function DrawRoom() {
                   <p className="border-t border-border/10 pt-2 text-3xs italic">
                     This result can be independently reproduced using the recorded seed.
                   </p>
+                  <div className="pt-2 border-t border-border/10">
+                    <Link
+                      to={ROUTES.VERIFY_ROOM(event.slug)}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                    >
+                      Go to Verification Console →
+                    </Link>
+                  </div>
                 </div>
 
                 {isHost ? (
@@ -1145,26 +1161,16 @@ export function DrawRoom() {
                 </div>
 
                 {/* Action buttons (Host only) */}
-                <div className="mt-6 flex flex-col sm:flex-row items-center gap-3.5 z-20 w-full px-2">
+                <div className="mt-6 flex items-center gap-3.5 z-20 w-full px-2">
                   {isHost ? (
-                    <>
-                      <button
-                        onClick={handleHostSpin}
-                        disabled={isSpinning || remainingItems.length === 0}
-                        className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none"
-                      >
-                        <Play className="w-5 h-5 fill-current" />
-                        {isSpinning ? 'Drawing...' : 'Spin Wheel'}
-                      </button>
-                      <button
-                        onClick={handleHostReset}
-                        disabled={isSpinning}
-                        className="px-4 py-3.5 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-semibold transition-all cursor-pointer select-none"
-                        title="Reset Roster Selections"
-                      >
-                        <RefreshCw className="w-4 h-4" />
-                      </button>
-                    </>
+                    <button
+                      onClick={handleHostSpin}
+                      disabled={event.status === 'active' || isSpinning || remainingItems.length === 0}
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none"
+                    >
+                      <Play className="w-5 h-5 fill-current" />
+                      {event.status === 'active' || isSpinning ? 'Drawing...' : 'Spin Wheel'}
+                    </button>
                   ) : (
                     <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center">
                       <Info className="w-4 h-4 text-primary shrink-0" />

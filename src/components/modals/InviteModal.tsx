@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Users, CheckCircle, Copy } from 'lucide-react';
+import { Copy, Share2, Check } from 'lucide-react';
 
 interface InviteModalProps {
   isOpen: boolean;
@@ -20,17 +20,41 @@ export function InviteModal({ isOpen, onClose, inviteCode }: InviteModalProps) {
 
   const handleCopyLink = () => {
     if (!inviteCode) return;
-    const link = `${window.location.origin}/draw/${inviteCode.toLowerCase()}`;
+    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleShare = async () => {
+    if (!inviteCode) return;
+    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
+    
+    const shareData = {
+      title: 'VeriDraw Live Event',
+      text: `Join my live drawing event on VeriDraw! Use invite code: ${inviteCode}`,
+      url: link,
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          console.error('Error sharing:', err);
+          handleCopyLink();
+        }
+      }
+    } else {
+      handleCopyLink();
+    }
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in animate-duration-200">
-      <div className="bg-background border border-border/80 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-6 relative animate-scale-in">
+      <div className="bg-background border border-border/80 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5.5 relative animate-scale-in">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -40,92 +64,77 @@ export function InviteModal({ isOpen, onClose, inviteCode }: InviteModalProps) {
           ✕
         </button>
 
-        <div className="text-center space-y-1.5">
-          <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto text-primary">
-            <Users className="w-6 h-6" />
-          </div>
-          <h3 className="text-lg font-black font-heading tracking-tight">Invite Participants</h3>
-          <p className="text-2xs text-muted-foreground">
+        {/* Header */}
+        <div className="text-center space-y-1">
+          <h3 className="text-xl font-black font-heading tracking-tight text-foreground">Invite Spectators</h3>
+          <p className="text-2sm text-muted-foreground leading-relaxed">
             Share this draw event with others so they can join and watch live!
           </p>
         </div>
 
-        {/* Invite Code Section */}
-        <div className="p-4 bg-secondary/50 border border-border/20 rounded-2xl space-y-2.5 text-center">
-          <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">Invite Code</span>
-          <div className="flex items-center justify-center gap-3">
-            <span className="text-3xl font-black font-mono tracking-wider text-foreground select-all">
-              {inviteCode}
-            </span>
-            <button
-              onClick={handleCopyCode}
-              className={`p-2 rounded-xl transition-all cursor-pointer ${
-                copiedCode
-                  ? 'bg-green-500 text-white border-green-500'
-                  : 'bg-background hover:bg-border/20 border border-border text-muted-foreground hover:text-foreground'
-              }`}
-              title="Copy Invite Code"
-              aria-label="Copy Invite Code"
-            >
-              {copiedCode ? <CheckCircle className="w-4.5 h-4.5" /> : <Copy className="w-4.5 h-4.5" />}
-            </button>
-          </div>
-          {copiedCode && <span className="text-3xs font-bold text-green-500 animate-pulse">Code copied!</span>}
-        </div>
-
-        {/* Public Link Section */}
+        {/* Share Link (Recommended) Section */}
         <div className="space-y-2">
-          <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">Direct Invite Link</span>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              readOnly
-              value={`${window.location.origin}/draw/${inviteCode.toLowerCase()}`}
-              className="flex-1 px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2xs font-mono focus:outline-none"
-            />
+          <div className="space-y-0.5">
+            <span className="text-2sm font-bold text-foreground block">Share Link (Recommended)</span>
+            <span className="text-3xs text-muted-foreground block font-medium">Anyone with this link can join the event.</span>
+          </div>
+          <input
+            type="text"
+            readOnly
+            value={`${window.location.origin}/join/${inviteCode.toUpperCase()}`}
+            className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2sm font-mono focus:outline-none select-all"
+          />
+          
+          <div className="flex gap-2.5">
             <button
               onClick={handleCopyLink}
-              className={`px-4 rounded-xl font-semibold text-2xs transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+              aria-label="Copy Direct Invite Link"
+              className={`flex-1 py-2.5 rounded-xl font-bold text-2sm transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 copiedLink
                   ? 'bg-green-500 text-white'
-                  : 'bg-primary text-primary-foreground hover:opacity-90 shadow-sm shadow-primary/10'
+                  : 'bg-primary text-primary-foreground hover:opacity-90 shadow-md shadow-primary/10'
               }`}
-              aria-label="Copy Direct Invite Link"
             >
-              {copiedLink ? (
-                <>
-                  <CheckCircle className="w-3.5 h-3.5" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" />
-                  Copy Link
-                </>
-              )}
+              {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              {copiedLink ? 'Copied!' : 'Copy Link'}
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              aria-label="Share Direct Invite Link"
+              className="flex-1 py-2.5 rounded-xl font-bold text-2sm bg-secondary hover:bg-border/20 border border-border text-foreground transition-all cursor-pointer flex items-center justify-center gap-1.5"
+            >
+              <Share2 className="w-4 h-4" />
+              Share
             </button>
           </div>
+          
+          {copiedLink && (
+            <span className="text-3xs font-bold text-green-500 block text-center animate-pulse">
+              ✅ Invite link copied to clipboard.
+            </span>
+          )}
         </div>
 
-        {/* How to Join Steps */}
-        <div className="pt-2 border-t border-border/10 space-y-2.5">
-          <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">How to join:</span>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="p-2.5 bg-secondary/25 border border-border/15 rounded-xl space-y-1">
-              <span className="text-3xs font-bold text-primary block">Step 1</span>
-              <span className="text-4xs text-muted-foreground block leading-tight">Go to VeriDraw dashboard</span>
-            </div>
-            <div className="p-2.5 bg-secondary/25 border border-border/15 rounded-xl space-y-1">
-              <span className="text-3xs font-bold text-primary block">Step 2</span>
-              <span className="text-4xs text-muted-foreground block leading-tight">Enter code <strong className="font-semibold">{inviteCode}</strong></span>
-            </div>
-            <div className="p-2.5 bg-secondary/25 border border-border/15 rounded-xl space-y-1">
-              <span className="text-3xs font-bold text-primary block">Step 3</span>
-              <span className="text-4xs text-muted-foreground block leading-tight">Watch the spins live!</span>
-            </div>
+        {/* Event Code Section */}
+        <div className="pt-4 border-t border-border/10 space-y-2.5 text-center">
+          <div className="space-y-0.5">
+            <span className="text-2sm font-bold text-foreground block">Event Code</span>
+            <span className="text-3xs text-muted-foreground block font-medium">Already on VeriDraw? Join using this event code:</span>
           </div>
+          <button
+            onClick={handleCopyCode}
+            className="text-4xl font-black font-mono tracking-wider text-primary hover:opacity-85 transition-opacity block mx-auto cursor-pointer focus:outline-none select-all"
+            title="Click to copy code"
+            aria-label="Copy Invite Code"
+          >
+            {inviteCode}
+          </button>
+          {copiedCode && <span className="text-3xs font-bold text-green-500 block animate-pulse">Code copied!</span>}
         </div>
       </div>
     </div>
   );
 }
+
+export default InviteModal;

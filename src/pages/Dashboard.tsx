@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { eventsApi, type EventRow } from '@/api/events';
 import { ROUTES } from '@/config/routes.config';
 import { PlusCircle, Trash2, Calendar, Eye, CheckCircle, Play } from 'lucide-react';
-import { getFriendlyErrorMessage } from '@/lib/error-helpers';
+import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 
 export function Dashboard() {
   const { user, loading: loadingAuth } = useAuth();
@@ -49,6 +49,7 @@ export function Dashboard() {
     } catch (err: unknown) {
       console.error(err);
       setError(getFriendlyErrorMessage(err, 'Failed to load drawing events.'));
+      void logErrorToDb(err, { context: 'Dashboard.loadEvents', currentOffset });
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -65,6 +66,7 @@ export function Dashboard() {
       setTotalCount(count);
     } catch (err) {
       console.error('Failed to load total events count:', err);
+      void logErrorToDb(err, { context: 'Dashboard.loadTotalCount' });
     }
   }, [user]);
 
@@ -91,22 +93,25 @@ export function Dashboard() {
       if (!upgradeDataStr) return;
 
       try {
-        const { items: lines, selectCount } = JSON.parse(upgradeDataStr);
+        const { items: lines, selectCount, eventName, requireViewerLogin, scheduledStartTime, status } = JSON.parse(upgradeDataStr);
         sessionStorage.removeItem('quick_draw_upgrade');
         
         setLoading(true);
         const newEvent = await eventsApi.create(
           {
-            event_name: 'Quick Draw Live',
-            scheduled_start_time: new Date().toISOString(),
+            event_name: eventName || 'Quick Draw Live',
+            scheduled_start_time: scheduledStartTime || new Date().toISOString(),
             item_type: 'custom',
             select_count: selectCount,
+            require_viewer_login: requireViewerLogin ?? false,
+            status: status || 'active',
           },
           lines
         );
-        navigate(ROUTES.DRAW_ROOM(newEvent.slug));
+        navigate(ROUTES.DRAW_ROOM(newEvent.slug), { state: { autoOpenInvite: true } });
       } catch (err) {
         console.error('Failed to auto-upgrade quick draw:', err);
+        void logErrorToDb(err, { context: 'Dashboard.checkQuickDrawUpgrade' });
       } finally {
         setLoading(false);
       }
@@ -126,6 +131,7 @@ export function Dashboard() {
       setTotalCount((prev) => (prev !== null ? Math.max(0, prev - 1) : null));
     } catch (err: unknown) {
       alert(getFriendlyErrorMessage(err, 'Failed to delete event.'));
+      void logErrorToDb(err, { context: 'Dashboard.handleDelete', eventId: id });
     }
   };
 
