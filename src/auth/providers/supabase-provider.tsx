@@ -11,8 +11,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const authInitialized = useRef(false);
 
   const handleAuthStateChange = useCallback(
-    async (event: string, session: Session | null) => {
-      console.log(`[Auth] Event: ${event}`);
+    (event: string, session: Session | null) => {
+      if (import.meta.env.DEV) console.log(`[Auth] Event: ${event}`);
       if (session?.user) {
         setUser(session.user);
       } else {
@@ -146,6 +146,30 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setLoading(false);
   };
 
+  const sendPasswordResetEmail = async (email: string) => {
+    // Always use the Edge Function so email is sent via Resend (not Supabase's
+    // built-in mailer, which cannot be configured on this shared project).
+    const { data, error } = await supabase.functions.invoke('vd-send-password-reset', {
+      body: {
+        email,
+        redirectTo: `${window.location.origin}/reset-password`,
+      },
+    });
+    if (error || (data && data.error)) {
+      throw new Error(error?.message || data?.error || 'Failed to send password reset email');
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+    setLoading(true);
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) {
+      setLoading(false);
+      throw error;
+    }
+    setLoading(false);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -157,6 +181,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
         signInWithGoogle,
         signInWithMicrosoft,
         signInWithMagicLink,
+        sendPasswordResetEmail,
+        updatePassword,
       }}
     >
       {children}

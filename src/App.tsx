@@ -7,6 +7,8 @@ import { CreateEvent } from '@/pages/CreateEvent';
 import { DrawRoom } from '@/pages/DrawRoom';
 import { QuickDraw } from '@/pages/QuickDraw';
 import { Login } from '@/pages/Login';
+import { ForgotPassword } from '@/pages/ForgotPassword';
+import { ResetPassword } from '@/pages/ResetPassword';
 import { Profile } from '@/pages/Profile';
 import { VerifyDraw } from '@/pages/VerifyDraw';
 import { ROUTES } from '@/config/routes.config';
@@ -32,6 +34,10 @@ export function App() {
 
               {/* Login Room */}
               <Route path={ROUTES.LOGIN} element={<Login />} />
+
+              {/* Forgot / Reset password */}
+              <Route path={ROUTES.FORGOT_PASSWORD} element={<ForgotPassword />} />
+              <Route path={ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
 
               {/* Profile Settings */}
               <Route path={ROUTES.PROFILE} element={<Profile />} />

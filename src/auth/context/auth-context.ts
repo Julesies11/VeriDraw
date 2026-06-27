@@ -10,6 +10,8 @@ export interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithMicrosoft: () => Promise<void>;
   signInWithMagicLink: (email: string) => Promise<void>;
+  sendPasswordResetEmail: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

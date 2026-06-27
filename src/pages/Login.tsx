@@ -170,9 +170,20 @@ export function Login() {
 
           {(isSignUp || !isMagicLink) && (
             <div className="space-y-1.5">
-              <label className="text-2sm font-semibold tracking-wide" htmlFor="password">
-                Password
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="text-2sm font-semibold tracking-wide" htmlFor="password">
+                  Password
+                </label>
+                {!isSignUp && (
+                  <button
+                    type="button"
+                    onClick={() => navigate(ROUTES.FORGOT_PASSWORD)}
+                    className="text-2xs font-semibold text-primary hover:underline cursor-pointer"
+                  >
+                    Forgot Password?
+                  </button>
+                )}
+              </div>
               <div className="relative">
                 <span className="absolute left-3.5 top-3 text-muted-foreground">
                   <Lock className="w-4.5 h-4.5" />
