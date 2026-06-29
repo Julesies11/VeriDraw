@@ -9,10 +9,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const authInitialized = useRef(false);
+  const isExchangingHash = useRef(false);
 
   const handleAuthStateChange = useCallback(
     (event: string, session: Session | null) => {
       if (import.meta.env.DEV) console.log(`[Auth] Event: ${event}`);
+
+      // If we are currently exchanging an implicit hash session, ignore
+      // other intermediate/fallback events until the login completes.
+      if (isExchangingHash.current && event !== 'SIGNED_IN' && event !== 'TOKEN_REFRESHED' && event !== 'USER_UPDATED') {
+        return;
+      }
+
       if (session?.user) {
         setUser(session.user);
       } else {
@@ -22,6 +30,43 @@ export function AuthProvider({ children }: PropsWithChildren) {
     },
     []
   );
+
+  // Handle implicit flow hash tokens (magic link, signup, invite)
+  // because when flowType is set to 'pkce', the browser client ignores hashes by default.
+  useEffect(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash : '';
+    if (!hash || !hash.includes('access_token')) return;
+
+    const params = new URLSearchParams(hash.substring(1));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const type = params.get('type');
+
+    // Skip password recovery hashes here as they are specifically handled by ResetPassword.tsx
+    if (accessToken && refreshToken && type !== 'recovery') {
+      isExchangingHash.current = true;
+
+      // Clear the hash from the URL immediately for security and clean URLs
+      window.history.replaceState({}, '', window.location.pathname + window.location.search);
+
+      supabase.auth
+        .setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error }) => {
+          isExchangingHash.current = false;
+          if (error) {
+            console.error('[Auth] Error setting session from hash:', error);
+            setLoading(false);
+          } else {
+            console.log(`[Auth] Session successfully established via ${type || 'implicit'} hash`);
+          }
+        })
+        .catch((err) => {
+          isExchangingHash.current = false;
+          console.error('[Auth] Unexpected error setting session from hash:', err);
+          setLoading(false);
+        });
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
