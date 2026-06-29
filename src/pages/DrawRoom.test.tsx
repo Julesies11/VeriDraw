@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { render, cleanup, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { DrawRoom } from './DrawRoom';
 
@@ -47,16 +47,22 @@ vi.mock('react-router', async () => {
   };
 });
 
+// Stub clipboard for copy-link tests
+const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
+vi.stubGlobal('navigator', {
+  clipboard: { writeText: clipboardWriteText },
+});
+
 describe('DrawRoom Page Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Default mock values
+    // Default mock values — use a realistic full slug for share-link tests
     mockUserState.user = { id: 'user-123', email: 'host@example.com' };
     mockUserState.loading = false;
     mockEventState.event = {
       id: 'event-123',
       event_name: 'Test Draw Room Event',
-      slug: 'test-slug',
+      slug: 'test-draw-room-event-njrc0l',
       select_count: 1,
       status: 'active',
       created_by: 'user-123',
@@ -90,27 +96,22 @@ describe('DrawRoom Page Tests', () => {
   });
 
   it('redirects to login if event is private and user is not authenticated', () => {
-    // Override user to be unauthenticated (null)
     mockUserState.user = null;
-    // Set event to private
     mockEventState.event.require_viewer_login = true;
 
     render(
-      <MemoryRouter initialEntries={['/draw/test-slug']}>
+      <MemoryRouter initialEntries={['/draw/test-draw-room-event-njrc0l']}>
         <DrawRoom />
       </MemoryRouter>
     );
 
-    // Verify redirection to /login with state
     expect(mockNavigate).toHaveBeenCalledWith('/login', {
-      state: { from: '/draw/test-slug' },
+      state: { from: '/draw/test-draw-room-event-njrc0l' },
     });
   });
 
   it('does not redirect if event is private but user is authenticated', () => {
-    // User is authenticated
     mockUserState.user = { id: 'user-123' };
-    // Event is private
     mockEventState.event.require_viewer_login = true;
 
     const { getByRole } = render(
@@ -119,8 +120,62 @@ describe('DrawRoom Page Tests', () => {
       </MemoryRouter>
     );
 
-    // Should render page title instead of redirecting
     expect(getByRole('heading', { name: 'Test Draw Room Event' })).toBeDefined();
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  // ---
+  // Share-link behaviour tests (Bug fix verification)
+  // ---
+
+  it('invite code badge displays the 6-char suffix extracted from the slug', () => {
+    // slug = 'test-draw-room-event-njrc0l' → last segment = 'njrc0l' → uppercase 'NJRC0L'
+    const { getByText } = render(
+      <MemoryRouter>
+        <DrawRoom />
+      </MemoryRouter>
+    );
+    expect(getByText(/NJRC0L/i)).toBeDefined();
+  });
+
+  it('copy-link button writes the full /draw/<slug> URL to clipboard (not /join/)', () => {
+    // The inline copy-link button lives inside the scheduled panel
+    mockEventState.event.status = 'scheduled';
+    mockEventState.event.scheduled_start_time = new Date(Date.now() + 3600000).toISOString();
+
+    const { container } = render(
+      <MemoryRouter>
+        <DrawRoom />
+      </MemoryRouter>
+    );
+
+    const copyLinkBtn = container.querySelector(
+      '[aria-label="Copy Direct Invite Link"]'
+    ) as HTMLElement;
+    expect(copyLinkBtn).not.toBeNull();
+    fireEvent.click(copyLinkBtn);
+
+    expect(clipboardWriteText).toHaveBeenCalledWith(
+      expect.stringContaining('/draw/test-draw-room-event-njrc0l')
+    );
+    const writtenValue: string = clipboardWriteText.mock.calls[0][0];
+    expect(writtenValue).not.toContain('/join/');
+  });
+
+  it('share link read-only input shows the full /draw/<slug> URL', () => {
+    // The read-only input lives inside the scheduled panel
+    mockEventState.event.status = 'scheduled';
+    mockEventState.event.scheduled_start_time = new Date(Date.now() + 3600000).toISOString();
+
+    const { container } = render(
+      <MemoryRouter>
+        <DrawRoom />
+      </MemoryRouter>
+    );
+
+    const input = container.querySelector('input[readonly]') as HTMLInputElement;
+    expect(input).not.toBeNull();
+    expect(input.value).toContain('/draw/test-draw-room-event-njrc0l');
+    expect(input.value).not.toContain('/join/');
   });
 });

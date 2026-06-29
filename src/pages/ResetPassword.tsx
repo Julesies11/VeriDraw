@@ -27,7 +27,9 @@ export function ResetPassword() {
   // mark session as ready and cancel the expiry timeout.
   useEffect(() => {
     if (user) {
-      setSessionReady(true);
+      setTimeout(() => {
+        setSessionReady(true);
+      }, 0);
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
@@ -68,9 +70,8 @@ export function ResetPassword() {
         });
     } else {
       // Hash present but malformed — fail immediately rather than waiting.
-      setTimedOut(true);
+      setTimeout(() => setTimedOut(true), 0);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Give Supabase up to 5 seconds to exchange the token.

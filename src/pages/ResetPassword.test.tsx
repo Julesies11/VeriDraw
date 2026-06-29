@@ -3,13 +3,13 @@ import { render, waitFor, act, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 // ─── Supabase mock ─────────────────────────────────────────────────────────────
-const { mockSetSession, mockOnAuthStateChange, mockUnsubscribe } = vi.hoisted(() => {
+const { mockSetSession, mockOnAuthStateChange } = vi.hoisted(() => {
   const mockUnsubscribe = vi.fn();
   const mockOnAuthStateChange = vi.fn(() => ({
     data: { subscription: { unsubscribe: mockUnsubscribe } },
   }));
   const mockSetSession = vi.fn().mockResolvedValue({ error: null });
-  return { mockSetSession, mockOnAuthStateChange, mockUnsubscribe };
+  return { mockSetSession, mockOnAuthStateChange };
 });
 
 vi.mock('@/lib/supabase', () => ({
