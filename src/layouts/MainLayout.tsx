@@ -56,9 +56,11 @@ export function MainLayout({ children }: MainLayoutProps) {
       <header className="sticky top-0 z-40 w-full glass border-b border-border/40 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link to={ROUTES.DASHBOARD} className="flex items-center gap-2 group">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white shadow-md shadow-primary/20">
-              <Sparkles className="w-5 h-5 animate-pulse" />
-            </div>
+            <img
+              src="/web-app-manifest-192x192.png"
+              alt="VeriDraw Logo"
+              className="w-11 h-11 rounded-xl object-cover group-hover:scale-105 transition-transform"
+            />
             <span className="font-heading font-bold text-xl tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
               VeriDraw
             </span>

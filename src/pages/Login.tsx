@@ -97,9 +97,11 @@ export function Login() {
   return (
     <div className="max-w-md mx-auto py-12 px-4 animate-fade-in">
       <div className="text-center space-y-2 mb-8">
-        <div className="inline-flex w-12 h-12 rounded-xl bg-gradient-to-tr from-primary to-accent items-center justify-center text-white shadow-md mb-2">
-          <Sparkles className="w-6 h-6 animate-pulse" />
-        </div>
+        <img
+          src="/web-app-manifest-192x192.png"
+          alt="VeriDraw Logo"
+          className="w-20 h-20 rounded-2xl mx-auto mb-2 object-cover"
+        />
         <h1 className="text-3xl font-black font-heading tracking-tight">
           {isSignUp ? 'Create your free VeriDraw account.' : 'Welcome to VeriDraw'}
         </h1>
