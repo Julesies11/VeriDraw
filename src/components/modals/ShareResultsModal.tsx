@@ -19,6 +19,7 @@ export function ShareResultsModal({
   totalEntriesCount
 }: ShareResultsModalProps) {
   const [copiedSummary, setCopiedSummary] = useState(false);
+  const [copiedShare, setCopiedShare] = useState(false);
 
   const shortCode = useMemo(() => {
     const cleanCode = eventSlug.trim();
@@ -91,11 +92,17 @@ export function ShareResultsModal({
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
           console.error('Error sharing:', err);
-          handleCopySummary();
+          // Fallback to copy if share sheet failed
+          navigator.clipboard.writeText(summaryText);
+          setCopiedShare(true);
+          setTimeout(() => setCopiedShare(false), 2000);
         }
       }
     } else {
-      handleCopySummary();
+      // Fallback to copy on unsupported platforms
+      navigator.clipboard.writeText(summaryText);
+      setCopiedShare(true);
+      setTimeout(() => setCopiedShare(false), 2000);
     }
   };
 
@@ -132,7 +139,7 @@ export function ShareResultsModal({
           </div>
           
           <textarea
-            rows={8}
+            rows={12}
             readOnly
             value={summaryText}
             className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-3xs font-mono focus:outline-none select-all resize-none"
@@ -148,22 +155,26 @@ export function ShareResultsModal({
               }`}
             >
               {copiedSummary ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-              {copiedSummary ? 'Summary Copied!' : 'Copy Summary'}
+              {copiedSummary ? 'Copied Summary' : 'Copy Summary'}
             </button>
             
             <button
               type="button"
               onClick={handleShare}
-              className="flex-1 py-2.5 rounded-xl font-bold text-2sm bg-primary text-primary-foreground hover:opacity-90 shadow-md shadow-primary/10 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              className={`flex-1 py-2.5 rounded-xl font-bold text-2sm transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                copiedShare
+                  ? 'bg-green-500 text-white border-green-500'
+                  : 'bg-primary text-primary-foreground hover:opacity-90 shadow-md shadow-primary/10'
+              }`}
             >
-              <Share2 className="w-4 h-4" />
-              Share Summary
+              {copiedShare ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
+              {copiedShare ? 'Copied Summary' : 'Share'}
             </button>
           </div>
           
-          {copiedSummary && (
+          {(copiedSummary || copiedShare) && (
             <span className="text-3xs font-bold text-green-500 block text-center animate-pulse">
-              ✅ Summary copied to clipboard.
+              ✅ Results summary copied to clipboard.
             </span>
           )}
         </div>

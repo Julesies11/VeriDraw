@@ -20,6 +20,40 @@ interface CreateEventFormData {
   enable_verifiable_seed: boolean;
 }
 
+function getDuplicatedName(name: string): string {
+  const cleanName = name.trim();
+
+  // Matches "(Copy)" or "- Copy" or similar variations at the end
+  const copyRegex = /\s*(?:\(Copy\)|-\s*Copy|–\s*Copy)$/i;
+
+  // Matches endings like " (2)", " (3)", etc.
+  const parenNumRegex = /\s*\((\d+)\)$/;
+
+  // Matches endings like " – Copy 2", " - Copy 2", etc.
+  const dashCopyNumRegex = /\s*[-–—]\s*Copy\s*(\d+)$/i;
+
+  if (copyRegex.test(cleanName)) {
+    return cleanName.replace(copyRegex, ' (2)');
+  }
+
+  const parenNumMatch = cleanName.match(parenNumRegex);
+  if (parenNumMatch) {
+    const nextNum = parseInt(parenNumMatch[1]) + 1;
+    return cleanName.replace(parenNumRegex, ` (${nextNum})`);
+  }
+
+  const dashCopyNumMatch = cleanName.match(dashCopyNumRegex);
+  if (dashCopyNumMatch) {
+    const nextNum = parseInt(dashCopyNumMatch[1]) + 1;
+    return cleanName.replace(dashCopyNumRegex, (match) => {
+      const dash = match.includes('–') ? '–' : match.includes('—') ? '—' : '-';
+      return ` ${dash} Copy ${nextNum}`;
+    });
+  }
+
+  return `${cleanName} (Copy)`;
+}
+
 export function CreateEvent() {
   const { user, loading: loadingAuth } = useAuth();
   const navigate = useNavigate();
@@ -98,7 +132,7 @@ export function CreateEvent() {
       const timer = setTimeout(() => {
         setFormData((prev) => ({
           ...prev,
-          name: `${name} (Copy)`,
+          name: getDuplicatedName(name),
           description: description || '',
           scheduled_start_time: formatLocalDatetime(new Date()),
           item_type: item_type || 'custom',

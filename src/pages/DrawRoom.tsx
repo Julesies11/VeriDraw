@@ -519,24 +519,18 @@ export function DrawRoom() {
     setShowWinnerBanner(false);
     setIsSpinning(false);
 
-    // If on a /replay/ route, redirect to /draw/ to prevent auto-restart on re-render
-    if (window.location.pathname.startsWith('/replay/')) {
-      const slug = window.location.pathname.replace('/replay/', '');
-      window.history.replaceState(null, '', `/draw/${slug}`);
-      return;
+    // If on a /replay/ route, redirect to /draw/ using react-router to update local state and prevent looping
+    if (location.pathname.startsWith('/replay/')) {
+      const slug = location.pathname.replace('/replay/', '');
+      navigate(`/draw/${slug}`, { replace: true });
+    } else {
+      // Otherwise strip any query parameters that would trigger replay
+      const params = new URLSearchParams(location.search);
+      if (params.has('replay') || params.has('mode') || params.has('r')) {
+        navigate(location.pathname, { replace: true });
+      }
     }
-
-    // Otherwise strip any query parameters that would trigger replay
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('replay') || params.has('mode') || params.has('r')) {
-      params.delete('replay');
-      params.delete('mode');
-      params.delete('r');
-      const newSearch = params.toString();
-      const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
-      window.history.replaceState(null, '', newPath);
-    }
-  }, []);
+  }, [location.pathname, location.search, navigate]);
 
   // URL parameters or pathname replay trigger
   useEffect(() => {
@@ -1073,14 +1067,6 @@ export function DrawRoom() {
                   <p className="border-t border-border/10 pt-2 text-3xs italic">
                     This result can be independently reproduced using the recorded seed.
                   </p>
-                  <div className="pt-2 border-t border-border/10">
-                    <Link
-                      to={ROUTES.VERIFY_ROOM(event.slug)}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-                    >
-                      Go to Verification Console →
-                    </Link>
-                  </div>
                 </div>
 
                 {isHost ? (
