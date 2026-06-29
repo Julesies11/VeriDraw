@@ -2,13 +2,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Play, Trophy, Sparkles, Upload, List, Save, Copy } from 'lucide-react';
+import { ArrowLeft, Play, Trophy, Sparkles, Upload, List, Save, Copy, Share2 } from 'lucide-react';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import confetti from 'canvas-confetti';
 import { eventsApi } from '@/api/events';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 import { generateSecureCode, seededShuffle } from '@/lib/crypto';
 import { GoLiveModal } from '@/components/modals/GoLiveModal';
+import { ShareResultsModal } from '@/components/modals/ShareResultsModal';
 
 interface QuickDrawItem {
   id: string;
@@ -42,6 +43,7 @@ export function QuickDraw() {
   const [duplicatedFromSlug, setDuplicatedFromSlug] = useState<string | null>(null);
   const [seed, setSeed] = useState<string | null>(null);
   const [isGoLiveModalOpen, setIsGoLiveModalOpen] = useState(false);
+  const [isShareResultsModalOpen, setIsShareResultsModalOpen] = useState(false);
 
   // Derived lists for rendering
   const activeItems = useMemo(() => {
@@ -591,6 +593,13 @@ export function QuickDraw() {
 
               <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
                 <button
+                  onClick={() => setIsShareResultsModalOpen(true)}
+                  className="w-full py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <Share2 className="w-4.5 h-4.5" />
+                  Share Results
+                </button>
+                <button
                   onClick={handleCreateNewDraw}
                   className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
@@ -696,6 +705,18 @@ export function QuickDraw() {
           user={user}
           onConfirm={handleGoLive}
           loading={loading}
+        />
+      )}
+
+      {/* Share Results Modal */}
+      {completedDrawId && (
+        <ShareResultsModal
+          isOpen={isShareResultsModalOpen}
+          onClose={() => setIsShareResultsModalOpen(false)}
+          eventName="Quick Draw"
+          eventSlug={completedDrawId}
+          winners={selectedItems}
+          totalEntriesCount={items.length}
         />
       )}
     </div>

@@ -6,12 +6,13 @@ import { drawApi } from '@/api/draw';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import { deriveWheelState } from '@/components/roulette/roulette-helpers';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Users, CheckCircle, Trophy, Play, Pause, Info, Copy, Download, List, Sparkles, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Trophy, Play, Pause, Info, Copy, List, Sparkles, Share2, ShieldCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 import { CountdownTimer } from '@/components/draw/CountdownTimer';
 import { ReactionsOverlay, type ReactionsOverlayRef } from '@/components/draw/ReactionsOverlay';
 import { InviteModal } from '@/components/modals/InviteModal';
+import { ShareResultsModal } from '@/components/modals/ShareResultsModal';
 
 export function DrawRoom() {
   const { slugOrId } = useParams<{ slugOrId: string }>();
@@ -39,6 +40,7 @@ export function DrawRoom() {
 
   // Sharing states
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isShareResultsModalOpen, setIsShareResultsModalOpen] = useState(false);
 
   // Copy-to-clipboard state for the inline scheduled panel share section
   const [copiedCode, setCopiedCode] = useState(false);
@@ -516,23 +518,43 @@ export function DrawRoom() {
     setLocalWinner(null);
     setShowWinnerBanner(false);
     setIsSpinning(false);
+
+    // If on a /replay/ route, redirect to /draw/ to prevent auto-restart on re-render
+    if (window.location.pathname.startsWith('/replay/')) {
+      const slug = window.location.pathname.replace('/replay/', '');
+      window.history.replaceState(null, '', `/draw/${slug}`);
+      return;
+    }
+
+    // Otherwise strip any query parameters that would trigger replay
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('replay') || params.has('mode') || params.has('r')) {
+      params.delete('replay');
+      params.delete('mode');
+      params.delete('r');
+      const newSearch = params.toString();
+      const newPath = window.location.pathname + (newSearch ? `?${newSearch}` : '');
+      window.history.replaceState(null, '', newPath);
+    }
   }, []);
 
-  // URL parameters replay trigger
+  // URL parameters or pathname replay trigger
   useEffect(() => {
     if (loading || loadingAuth || !event || event.status !== 'completed') return;
     
+    const isReplayRoute = location.pathname.startsWith('/replay');
     const searchParams = new URLSearchParams(location.search);
     const mode = searchParams.get('mode');
     const replay = searchParams.get('replay');
+    const r = searchParams.get('r');
     
-    if (mode === 'replay' || replay === 'true') {
+    if (isReplayRoute || mode === 'replay' || replay === 'true' || r === '1' || r === 'true') {
       const timer = setTimeout(() => {
         startReplay();
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [event, loading, loadingAuth, location.search, startReplay]);
+  }, [event, loading, loadingAuth, location.pathname, location.search, startReplay]);
 
   // Handle active replay step simulation timer loop
   useEffect(() => {
@@ -664,36 +686,7 @@ export function DrawRoom() {
     return logs.sort((a, b) => a.timestamp - b.timestamp);
   }, [event, items]);
 
-  const handleDownloadLogs = () => {
-    if (!event) return;
 
-    const header = [
-      '==================================================',
-      'VERIDRAW AUDIT LOG CERTIFICATE',
-      '==================================================',
-      `Event Name:       ${event.event_name}`,
-      `Event ID:         VD-${event.id.substring(0, 6).toUpperCase()}`,
-      `Scheduled Time:   ${new Date(event.scheduled_start_time).toLocaleString()}`,
-      `Public Seed:      ${generatedSeed}`,
-      `Total Entries:    ${items.length}`,
-      '==================================================\n\n'
-    ].join('\n');
-
-    const logLines = auditLogs
-      .map(l => `[${new Date(l.timestamp).toLocaleString()}] ${l.text}`)
-      .join('\n');
-
-    const logText = header + logLines;
-    const blob = new Blob([logText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${event.event_name.replace(/\s+/g, '_')}_audit_logs.txt`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
 
 
 
@@ -904,10 +897,15 @@ export function DrawRoom() {
 
           {/* Right Column: Pre-lock items listing */}
           <div className="glass border border-border/40 rounded-2xl p-5 space-y-4">
-            <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
-              <List className="w-4.5 h-4.5 text-primary" />
-              Entries Roster ({items.length})
-            </h2>
+            <div className="border-b border-border/20 pb-2.5 space-y-1">
+              <h2 className="text-md font-extrabold font-heading flex items-center gap-2">
+                <List className="w-4.5 h-4.5 text-primary" />
+                Entry Pool ({items.length})
+              </h2>
+              <div className="text-3xs text-muted-foreground font-semibold uppercase tracking-wider pl-6.5">
+                Target: {event.select_count} {event.select_count === 1 ? 'selection' : 'selections'} will be drawn
+              </div>
+            </div>
             <div className="divide-y divide-border/20 max-h-[340px] overflow-y-auto pr-1">
               {items.map((item, idx) => (
                 <div key={item.id} className="py-2.5 flex items-center justify-between text-2sm">
@@ -932,7 +930,7 @@ export function DrawRoom() {
                 {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
                   <>
                     <List className="w-4.5 h-4.5 text-primary" />
-                    Entries Roster ({items.length})
+                    Entry Pool ({items.length})
                   </>
                 ) : (
                   <>
@@ -1088,6 +1086,13 @@ export function DrawRoom() {
                 {isHost ? (
                   <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
                     <button
+                      onClick={() => setIsShareResultsModalOpen(true)}
+                      className="w-full py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Share2 className="w-4.5 h-4.5" />
+                      Share Results
+                    </button>
+                    <button
                       onClick={handleCreateNewDraw}
                       className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
@@ -1117,6 +1122,13 @@ export function DrawRoom() {
                     >
                       <Play className="w-4 h-4 fill-current text-white" />
                       Watch Replay
+                    </button>
+                    <button
+                      onClick={() => setIsShareResultsModalOpen(true)}
+                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Share2 className="w-4.5 h-4.5 text-primary" />
+                      Share Results
                     </button>
                     <div className="w-full p-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center border border-border/20 shrink-0">
                       This draw is complete and the results are verified.
@@ -1161,9 +1173,14 @@ export function DrawRoom() {
                   />
                 </div>
 
-                {/* Action buttons (Host only) */}
+                {/* Action buttons */}
                 <div className="mt-6 flex items-center gap-3.5 z-20 w-full px-2">
-                  {isHost ? (
+                  {isReplaying ? (
+                    <div className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-primary/10 border border-primary/20 rounded-xl text-2sm text-primary text-center font-bold animate-pulse">
+                      <Play className="w-4 h-4 fill-current shrink-0" />
+                      <span>Replay Mode Active</span>
+                    </div>
+                  ) : isHost ? (
                     <button
                       onClick={handleHostSpin}
                       disabled={event.status === 'active' || isSpinning || remainingItems.length === 0}
@@ -1214,17 +1231,6 @@ export function DrawRoom() {
                   </p>
                 )}
               </div>
-            </div>
-
-            {/* Download Draw History action */}
-            <div className="border-t border-border/20 pt-4 flex gap-2">
-              <button
-                onClick={handleDownloadLogs}
-                className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-2xs font-semibold transition-all cursor-pointer select-none"
-              >
-                <Download className="w-3.5 h-3.5 text-muted-foreground" />
-                Download Draw History
-              </button>
             </div>
           </div>
         </div>
@@ -1277,6 +1283,18 @@ export function DrawRoom() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share Results Modal */}
+      {event && (
+        <ShareResultsModal
+          isOpen={isShareResultsModalOpen}
+          onClose={() => setIsShareResultsModalOpen(false)}
+          eventName={event.event_name}
+          eventSlug={event.slug}
+          winners={selectedItems}
+          totalEntriesCount={items.length}
+        />
       )}
     </div>
   );

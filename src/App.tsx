@@ -52,6 +52,9 @@ export function App() {
               {/* Live drawing room */}
               <Route path={ROUTES.DRAW_ROOM_PATTERN} element={<DrawRoom />} />
 
+              {/* Replay live drawing room */}
+              <Route path={ROUTES.REPLAY_ROOM_PATTERN} element={<DrawRoom />} />
+
               {/* Vanity join redirect */}
               <Route path="/join/:code" element={<JoinRedirect />} />
 
