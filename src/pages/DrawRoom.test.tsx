@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, cleanup, fireEvent } from '@testing-library/react';
+import { render, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { DrawRoom } from './DrawRoom';
 
@@ -68,6 +68,8 @@ describe('DrawRoom Page Tests', () => {
       created_by: 'user-123',
       require_viewer_login: false,
       enable_public_link: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
     mockEventState.items = [
       { id: 'item-1', item_value: 'Item 1', is_selected: false },
@@ -177,5 +179,46 @@ describe('DrawRoom Page Tests', () => {
     expect(input).not.toBeNull();
     expect(input.value).toContain('/draw/test-draw-room-event-njrc0l');
     expect(input.value).not.toContain('/join/');
+  });
+
+  it('renders "Entry Pool" instead of "Entries Roster" when the draw event is scheduled', () => {
+    mockEventState.event.status = 'scheduled';
+    mockEventState.event.scheduled_start_time = new Date(Date.now() + 3600000).toISOString();
+
+    const { getByRole } = render(
+      <MemoryRouter>
+        <DrawRoom />
+      </MemoryRouter>
+    );
+
+    expect(getByRole('heading', { name: /Entry Pool/i })).toBeDefined();
+  });
+
+  it('renders target selections count in the scheduled dashboard card', () => {
+    mockEventState.event.status = 'scheduled';
+    mockEventState.event.select_count = 3;
+    mockEventState.event.scheduled_start_time = new Date(Date.now() + 3600000).toISOString();
+
+    const { getByText } = render(
+      <MemoryRouter>
+        <DrawRoom />
+      </MemoryRouter>
+    );
+
+    expect(getByText(/Target: 3 selections will be drawn/i)).toBeDefined();
+  });
+
+  it('renders "Replay Mode Active" banner instead of host action buttons when replay is active', async () => {
+    mockEventState.event.status = 'completed';
+
+    const { getByText } = render(
+      <MemoryRouter initialEntries={['/draw/test-draw-room-event-njrc0l?replay=true']}>
+        <DrawRoom />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(getByText(/Replay Mode Active/i)).toBeDefined();
+    });
   });
 });

@@ -156,7 +156,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       },
     });
     if (error || (data && data.error)) {
-      throw new Error(error?.message || data?.error || 'Failed to send password reset email');
+      throw new Error('Failed to send password reset email: ' + (error?.message || data?.error || 'Unknown error'));
     }
   };
 

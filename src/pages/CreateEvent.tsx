@@ -468,7 +468,7 @@ export function CreateEvent() {
           {activeTab === 'csv' && (
             <div className="space-y-3">
               <label className="text-2sm font-semibold text-muted-foreground block">
-                Drag & drop or select a CSV/TXT roster file
+                Drag & drop or select a CSV/TXT entry file
               </label>
               
               <div className="border-2 border-dashed border-border/80 hover:border-primary/50 rounded-2xl p-6 text-center transition-all bg-input relative">

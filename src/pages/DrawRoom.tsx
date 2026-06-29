@@ -6,7 +6,7 @@ import { drawApi } from '@/api/draw';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import { deriveWheelState } from '@/components/roulette/roulette-helpers';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Users, CheckCircle, Trophy, Play, Pause, Info, Copy, List, Sparkles, Share2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Trophy, Play, Pause, Info, Copy, List, Sparkles, Share2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 import { CountdownTimer } from '@/components/draw/CountdownTimer';
@@ -348,22 +348,6 @@ export function DrawRoom() {
     });
   };
 
-
-
-
-  // Generate deterministic cryptographically-secure simulation seed
-  const generatedSeed = useMemo(() => {
-    if (!event) return '';
-    const val = event.id + event.created_at;
-    let hash = 0;
-    for (let i = 0; i < val.length; i++) {
-      const char = val.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return Math.abs(hash).toString(16).padEnd(8, 'f') + 'a8f72c91624c9c228a01cfbd92';
-  }, [event]);
-
   // Extract user-friendly short invite code from event slug
   const inviteCode = useMemo(() => {
     if (!event?.slug) return '';
@@ -624,61 +608,6 @@ export function DrawRoom() {
       return () => clearTimeout(timer);
     }
   }, [event, isReplaying, stopReplay]);
-
-  // Formulate Live Audit Trail Logs based on draw history timestamps
-  const auditLogs = useMemo(() => {
-    if (!event) return [];
-    const logs: Array<{ id: string; timestamp: number; text: string }> = [];
-
-    logs.push({
-      id: 'create',
-      timestamp: new Date(event.created_at).getTime(),
-      text: 'Event session initialized',
-    });
-
-    const lockTime = new Date(event.scheduled_start_time);
-    logs.push({
-      id: 'lock',
-      timestamp: lockTime.getTime(),
-      text: `Entries locked (${items.length} participants)`,
-    });
-
-    logs.push({
-      id: 'seed',
-      timestamp: lockTime.getTime() + 1000,
-      text: 'Public verification seed published',
-    });
-
-    // Populate log entries for each selection
-    items
-      .filter((item) => item.is_selected)
-      .sort((a, b) => (a.selection_order || 0) - (b.selection_order || 0))
-      .forEach((item, index) => {
-        if (!item.selected_at) return;
-        const selectTime = new Date(item.selected_at);
-        const spinTime = new Date(selectTime.getTime() - 4000);
-        const removeTime = new Date(selectTime.getTime() + 1500);
-
-        logs.push({
-          id: `spin-${item.id}`,
-          timestamp: spinTime.getTime(),
-          text: `Spin initiated (Round ${index + 1} of ${event.select_count})`,
-        });
-        logs.push({
-          id: `win-${item.id}`,
-          timestamp: selectTime.getTime(),
-          text: `Selected winner: ${item.item_value}`,
-        });
-        logs.push({
-          id: `remove-${item.id}`,
-          timestamp: removeTime.getTime(),
-          text: `${item.item_value} removed from active pool`,
-        });
-      });
-
-    // Sort chronologically by timestamp numeric values
-    return logs.sort((a, b) => a.timestamp - b.timestamp);
-  }, [event, items]);
 
 
 
@@ -955,7 +884,7 @@ export function DrawRoom() {
                     ))}
                     {remainingItems.length === 0 && (
                       <p className="text-2sm text-muted-foreground py-6 text-center">
-                        Roster pool exhausted. Selections complete.
+                        Entry pool exhausted. Selections complete.
                       </p>
                     )}
                   </>
@@ -1046,9 +975,14 @@ export function DrawRoom() {
                     </div>
                     <div>Timestamp:</div>
                     <div className="text-right text-foreground whitespace-nowrap">
-                      {selectedItems.length > 0 && selectedItems[selectedItems.length - 1].selected_at
-                        ? new Date(selectedItems[selectedItems.length - 1].selected_at!).toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
-                        : new Date(event.updated_at).toISOString().replace('T', ' ').substring(0, 19) + ' UTC'}
+                      {(() => {
+                        const dateVal = selectedItems.length > 0 && selectedItems[selectedItems.length - 1].selected_at
+                          ? selectedItems[selectedItems.length - 1].selected_at
+                          : (event.updated_at || event.created_at);
+                        return dateVal
+                          ? new Date(dateVal).toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
+                          : 'N/A';
+                      })()}
                     </div>
                     <div>Entries:</div>
                     <div className="text-right text-foreground">{items.length}</div>
