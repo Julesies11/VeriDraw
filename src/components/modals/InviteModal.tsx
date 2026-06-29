@@ -5,9 +5,11 @@ interface InviteModalProps {
   isOpen: boolean;
   onClose: () => void;
   inviteCode: string;
+  /** Full event slug (e.g. "my-event-njrc0l") used to build the share link. */
+  eventSlug: string;
 }
 
-export function InviteModal({ isOpen, onClose, inviteCode }: InviteModalProps) {
+export function InviteModal({ isOpen, onClose, inviteCode, eventSlug }: InviteModalProps) {
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -19,16 +21,16 @@ export function InviteModal({ isOpen, onClose, inviteCode }: InviteModalProps) {
   };
 
   const handleCopyLink = () => {
-    if (!inviteCode) return;
-    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
+    if (!eventSlug) return;
+    const link = `${window.location.origin}/draw/${eventSlug}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleShare = async () => {
-    if (!inviteCode) return;
-    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
+    if (!eventSlug) return;
+    const link = `${window.location.origin}/draw/${eventSlug}`;
     
     const shareData = {
       title: 'VeriDraw Live Event',
@@ -81,7 +83,7 @@ export function InviteModal({ isOpen, onClose, inviteCode }: InviteModalProps) {
           <input
             type="text"
             readOnly
-            value={`${window.location.origin}/join/${inviteCode.toUpperCase()}`}
+            value={`${window.location.origin}/draw/${eventSlug}`}
             className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2sm font-mono focus:outline-none select-all"
           />
           

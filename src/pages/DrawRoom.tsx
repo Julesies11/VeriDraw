@@ -387,16 +387,16 @@ export function DrawRoom() {
   };
 
   const handleCopyLink = () => {
-    if (!inviteCode) return;
-    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
+    if (!event?.slug) return;
+    const link = `${window.location.origin}/draw/${event.slug}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleShare = async () => {
-    if (!inviteCode) return;
-    const link = `${window.location.origin}/join/${inviteCode.toUpperCase()}`;
+    if (!event?.slug) return;
+    const link = `${window.location.origin}/draw/${event.slug}`;
     
     const shareData = {
       title: 'VeriDraw Live Event',
@@ -728,6 +728,7 @@ export function DrawRoom() {
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
         inviteCode={inviteCode}
+        eventSlug={event?.slug ?? ''}
       />
 
       {/* Header Info */}
@@ -820,7 +821,7 @@ export function DrawRoom() {
                   <input
                     type="text"
                     readOnly
-                    value={`${window.location.origin}/join/${inviteCode.toUpperCase()}`}
+                    value={`${window.location.origin}/draw/${event.slug}`}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-input text-foreground text-2sm font-mono focus:outline-none select-all"
                   />
                   
