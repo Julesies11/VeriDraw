@@ -404,7 +404,7 @@ export function QuickDraw() {
       {/* Main Responsive Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Candidate entries input */}
-        <div className="lg:col-span-4 p-6 glass border border-border/40 rounded-2xl space-y-5">
+        <div className="lg:col-span-4 p-4 sm:p-6 glass border border-border/40 rounded-2xl space-y-5 order-2 lg:order-1">
           <div className="flex items-center justify-between border-b border-border/20 pb-2.5">
             <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2">
               <List className="w-4.5 h-4.5" />
@@ -496,7 +496,7 @@ export function QuickDraw() {
         </div>
 
         {/* Center Column: Wheel Canvas & Controls */}
-        <div className="lg:col-span-5 p-6 glass border border-border/40 rounded-2xl flex flex-col items-center relative min-h-[460px]">
+        <div className="lg:col-span-5 p-4 sm:p-6 glass border border-border/40 rounded-2xl flex flex-col items-center relative min-h-[380px] lg:min-h-[460px] order-1 lg:order-2">
           {isCompleted ? (
             <div className="w-full flex flex-col items-center justify-start space-y-5 animate-fade-in">
               <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -658,7 +658,7 @@ export function QuickDraw() {
         </div>
 
         {/* Right Column: Selections List */}
-        <div className="lg:col-span-3 p-6 glass border border-border/40 rounded-2xl space-y-4">
+        <div className="lg:col-span-3 p-4 sm:p-6 glass border border-border/40 rounded-2xl space-y-4 order-3 lg:order-3">
           <div className="border-b border-border/20 pb-2 flex items-center justify-between">
             <h2 className="text-md font-extrabold font-heading text-foreground flex items-center gap-2">
               <Trophy className="w-4.5 h-4.5 text-yellow-500" />

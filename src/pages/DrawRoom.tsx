@@ -769,7 +769,7 @@ export function DrawRoom() {
       {event.status === 'scheduled' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left / Center Column: Invitation Details and Timer */}
-          <div className="lg:col-span-2 glass border border-border/40 rounded-2xl p-6 flex flex-col justify-between items-center text-center min-h-[460px]">
+          <div className="lg:col-span-2 glass border border-border/40 rounded-2xl p-4 sm:p-6 flex flex-col justify-between items-center text-center min-h-[460px]">
             <div className="max-w-md w-full space-y-6 py-4">
               {/* Countdown Timer Header */}
               <div className="space-y-1">
@@ -890,7 +890,7 @@ export function DrawRoom() {
           </div>
 
           {/* Right Column: Pre-lock items listing */}
-          <div className="glass border border-border/40 rounded-2xl p-5 space-y-4">
+          <div className="glass border border-border/40 rounded-2xl p-4 sm:p-5 space-y-4">
             <div className="border-b border-border/20 pb-2.5 space-y-1">
               <h2 className="text-md font-extrabold font-heading flex items-center gap-2">
                 <List className="w-4.5 h-4.5 text-primary" />
@@ -918,7 +918,7 @@ export function DrawRoom() {
       {(event.status === 'active' || event.status === 'completed') && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Panel: Remaining Candidate Pool */}
-          <div className="glass border border-border/40 rounded-2xl p-5 space-y-4 flex flex-col justify-between min-h-[480px]">
+          <div className="glass border border-border/40 rounded-2xl p-4 sm:p-5 space-y-4 flex flex-col justify-between min-h-[250px] lg:min-h-[480px] order-2 lg:order-1">
             <div>
               <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
                 {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
@@ -965,7 +965,7 @@ export function DrawRoom() {
           </div>
 
           {/* Center Panel: Roulette Wheel */}
-          <div className="lg:col-span-1 flex flex-col items-center justify-center p-6 glass border border-border/40 rounded-2xl min-h-[550px] relative overflow-hidden">
+          <div className="lg:col-span-1 flex flex-col items-center justify-center p-4 sm:p-6 glass border border-border/40 rounded-2xl min-h-[450px] lg:min-h-[550px] relative overflow-hidden order-1 lg:order-2">
             {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
               <div className="w-full flex flex-col items-center justify-start space-y-5 animate-fade-in">
                 <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -1189,7 +1189,7 @@ export function DrawRoom() {
           </div>
 
           {/* Right Panel: Selections List */}
-          <div className="glass border border-border/40 rounded-2xl p-5 space-y-4 flex flex-col h-[550px] justify-between">
+          <div className="glass border border-border/40 rounded-2xl p-4 sm:p-5 space-y-4 flex flex-col min-h-[350px] lg:h-[550px] justify-between order-3 lg:order-3">
             <div className="space-y-4 flex-1 flex flex-col min-h-0">
               <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
                 🏆 Selections ({selectedItems.length} drawn)

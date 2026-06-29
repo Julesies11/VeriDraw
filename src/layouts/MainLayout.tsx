@@ -54,7 +54,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     <div className="min-h-screen bg-background text-foreground flex flex-col transition-colors duration-300">
       {/* Top Navbar */}
       <header className="sticky top-0 z-40 w-full glass border-b border-border/40 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link to={ROUTES.DASHBOARD} className="flex items-center gap-2 group">
             <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-primary to-accent flex items-center justify-center text-white shadow-md shadow-primary/20">
               <Sparkles className="w-5 h-5 animate-pulse" />
@@ -112,13 +112,13 @@ export function MainLayout({ children }: MainLayoutProps) {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-8">
         {children}
       </main>
 
       {/* Footer */}
       <footer className="py-6 border-t border-border/40 text-center text-2xs text-muted-foreground">
-        <div className="max-w-7xl mx-auto px-6 flex items-center justify-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-center">
           <p>© 2026 VeriDraw</p>
         </div>
       </footer>
