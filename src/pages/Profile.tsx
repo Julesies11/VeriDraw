@@ -166,7 +166,7 @@ export function Profile() {
 
       {/* Success Notification */}
       {success && (
-        <div className="p-4 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400 text-2sm font-medium border border-green-500/20 flex items-center gap-2.5 shadow-sm animate-fade-in">
+        <div className="p-4 rounded-xl bg-green-500/10 text-green-600 text-2sm font-medium border border-green-500/20 flex items-center gap-2.5 shadow-sm animate-fade-in">
           <CheckCircle className="w-5 h-5 shrink-0" />
           <span>{success}</span>
         </div>

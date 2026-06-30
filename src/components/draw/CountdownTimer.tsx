@@ -88,7 +88,7 @@ export function CountdownTimer({ scheduledStartTime, status, onCommenced, isActi
 
   return (
     <div className="space-y-2.5">
-      <div className="text-sm font-semibold text-green-600 dark:text-green-400 flex items-center justify-center gap-2">
+      <div className="text-sm font-semibold text-green-600 flex items-center justify-center gap-2">
         <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
         <span>Draw is ready to commence!</span>
       </div>

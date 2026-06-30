@@ -150,7 +150,7 @@ export function VerifyDraw() {
             {/* Trust Seal Card */}
             <div className={`p-6 rounded-3xl border text-center shadow-lg relative overflow-hidden ${
               verificationResult.isVerified
-                ? 'bg-green-500/5 border-green-500/20 text-green-700 dark:text-green-400'
+                ? 'bg-green-500/5 border-green-500/20 text-green-700'
                 : 'bg-destructive/5 border-destructive/20 text-destructive'
             }`}>
               {/* Decorative grid background */}
@@ -240,7 +240,7 @@ export function VerifyDraw() {
                       <td className="py-3 text-foreground font-bold truncate max-w-[180px]">{item.item_value}</td>
                       <td className="py-3 text-center">
                         {item.is_selected ? (
-                          <span className="px-2 py-0.5 rounded-lg bg-green-500/10 text-green-600 dark:text-green-400 font-bold uppercase tracking-wider text-3xs">
+                          <span className="px-2 py-0.5 rounded-lg bg-green-500/10 text-green-600 font-bold uppercase tracking-wider text-3xs">
                             Selected
                           </span>
                         ) : (

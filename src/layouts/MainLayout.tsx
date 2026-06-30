@@ -14,14 +14,6 @@ export function MainLayout({ children }: MainLayoutProps) {
   const { profile } = useProfile();
   const navigate = useNavigate();
   const location = useLocation();
-  const [theme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('theme');
-      if (stored === 'light' || stored === 'dark') return stored;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'dark';
-  });
   const [avatarError, setAvatarError] = useState(false);
 
   useEffect(() => {
@@ -33,13 +25,9 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    root.classList.remove('dark');
+    localStorage.removeItem('theme');
+  }, []);
 
   const handleLogout = async () => {
     try {

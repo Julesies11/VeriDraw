@@ -1,4 +1,5 @@
-import { useMemo, useEffect, useRef, useState, useCallback } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
+import { audioManager } from '@/lib/audio';
 
 interface RouletteWheelProps {
   items: Array<{ id: string; item_value: string; is_selected: boolean }>;
@@ -32,29 +33,6 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
   const lastTickIndexRef = useRef(0);
   const pointerRotationRef = useRef(0);
 
-  // Web Audio Context synthetic click generator for tactile tick feedback
-  const playTickSound = useCallback(() => {
-    try {
-      const audioCtx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-
-      osc.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.04);
-
-      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
-
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.04);
-    } catch {
-      // Browser autoplay policy might block audio before interaction
-    }
-  }, []);
 
   // Cubic Bezier solver to match the ease-out transition curve exactly
   const solveCubicBezier = (x1: number, y1: number, x2: number, y2: number, t: number) => {
@@ -105,7 +83,7 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
 
         const currentTickIndex = Math.floor(currentAngle / sliceAngle);
         if (currentTickIndex !== lastTickIndexRef.current) {
-          playTickSound();
+          audioManager.playTick(1 - progress);
           // Kick the pointer to drag it left and simulate peg deflection
           pointerRotationRef.current = -20;
           lastTickIndexRef.current = currentTickIndex;
@@ -144,7 +122,7 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [isSpinning, rotationAngle, spinDurationMs, sliceAngle, playTickSound]);
+  }, [isSpinning, rotationAngle, spinDurationMs, sliceAngle]);
 
   // Generate color palette using clean, premium HSL values
   const getSliceColor = (index: number) => {
@@ -188,8 +166,8 @@ export function RouletteWheel({ items, rotationAngle, isSpinning, spinDurationMs
   return (
     <div className="relative flex items-center justify-center select-none w-full max-w-[420px] aspect-square mx-auto">
       {/* Outer Glowing Ring */}
-      <div className="absolute w-[106%] h-[106%] rounded-full border-4 border-primary/40 bg-background/5 shadow-[0_0_50px_rgba(30,96,145,0.25)] dark:shadow-[0_0_50px_rgba(58,134,200,0.15)] flex items-center justify-center">
-        <div className="w-[96%] h-[96%] rounded-full border-2 border-white/10 dark:border-white/5" />
+      <div className="absolute w-[106%] h-[106%] rounded-full border-4 border-primary/40 bg-background/5 shadow-[0_0_50px_rgba(30,96,145,0.25)] flex items-center justify-center">
+        <div className="w-[96%] h-[96%] rounded-full border-2 border-white/10" />
       </div>
 
       {/* Wheel Core SVG Container */}

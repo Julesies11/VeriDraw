@@ -2,9 +2,10 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, ArrowRight, Play, Trophy, Sparkles, Upload, List, Save, Copy, Share2, Settings } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, Trophy, Sparkles, Upload, List, Save, Copy, Share2, Settings, Volume2, VolumeX } from 'lucide-react';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import confetti from 'canvas-confetti';
+import { audioManager } from '@/lib/audio';
 import { eventsApi } from '@/api/events';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 import { generateSecureCode, seededShuffle } from '@/lib/crypto';
@@ -45,6 +46,13 @@ export function QuickDraw() {
   const [isGoLiveModalOpen, setIsGoLiveModalOpen] = useState(false);
   const [isShareResultsModalOpen, setIsShareResultsModalOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+
+  const [muted, setMuted] = useState(() => audioManager.isMuted());
+  const toggleMute = () => {
+    const nextMuted = !muted;
+    audioManager.setMuted(nextMuted);
+    setMuted(nextMuted);
+  };
 
 
   const handleStartLocalDraw = () => {
@@ -201,6 +209,7 @@ export function QuickDraw() {
         spread: 80,
         origin: { y: 0.6 },
       });
+      audioManager.playWin();
 
       if (selectionCount === targetCount) {
         const randomId = `VD-${generateSecureCode(6)}`;
@@ -668,6 +677,15 @@ export function QuickDraw() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               {/* Left Column: Wheel Canvas & Controls (takes 8 cols) */}
               <div className="lg:col-span-8 p-4 sm:p-6 glass border border-border/40 rounded-2xl flex flex-col items-center relative min-h-[380px] lg:min-h-[460px]">
+                {/* Mute/Unmute Control */}
+                <button
+                  onClick={toggleMute}
+                  className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-secondary hover:bg-border/30 border border-border/40 text-muted-foreground hover:text-foreground transition-all cursor-pointer shadow-sm active:scale-95"
+                  title={muted ? "Unmute Sounds" : "Mute Sounds"}
+                >
+                  {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
+
                 {/* Winner Banner */}
                 {showWinnerBanner && winnerItem && (
                   <div

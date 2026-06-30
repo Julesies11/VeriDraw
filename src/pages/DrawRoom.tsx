@@ -6,8 +6,9 @@ import { drawApi } from '@/api/draw';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import { deriveWheelState } from '@/components/roulette/roulette-helpers';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Users, CheckCircle, Trophy, Play, Pause, Info, Copy, List, Sparkles, Share2 } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Trophy, Play, Pause, Info, Copy, List, Sparkles, Share2, Volume2, VolumeX } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { audioManager } from '@/lib/audio';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 import { CountdownTimer } from '@/components/draw/CountdownTimer';
 import { ReactionsOverlay, type ReactionsOverlayRef } from '@/components/draw/ReactionsOverlay';
@@ -45,6 +46,13 @@ export function DrawRoom() {
   // Copy-to-clipboard state for the inline scheduled panel share section
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  const [muted, setMuted] = useState(() => audioManager.isMuted());
+  const toggleMute = () => {
+    const nextMuted = !muted;
+    audioManager.setMuted(nextMuted);
+    setMuted(nextMuted);
+  };
 
   const itemsRef = useRef<Array<{ id: string; item_value: string; is_selected: boolean; selection_order?: number | null; selected_at?: string | null }>>([]);
   const dismissTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -234,6 +242,7 @@ export function DrawRoom() {
           spread: 80,
           origin: { y: 0.6 },
         });
+        audioManager.playWin();
         lastAnimatedWinnerIdRef.current = winnerId + '_landed';
         
         // Refresh selection history and items list
@@ -580,6 +589,7 @@ export function DrawRoom() {
             spread: 80,
             origin: { y: 0.6 },
           });
+          audioManager.playWin();
 
           const bannerTimer = setTimeout(() => {
             // Dismiss winner: rotate back to 0
@@ -666,18 +676,18 @@ export function DrawRoom() {
         {/* Live Counters & Sharing */}
         <div className="flex flex-wrap items-center gap-3">
 
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-2sm font-semibold">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 text-2sm font-semibold">
             <Users className="w-4 h-4 animate-pulse" />
             <span>{viewerCount} watching</span>
           </div>
 
           {isReplaying ? (
-            <div className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-2sm font-bold uppercase animate-pulse">
+            <div className="px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 text-2sm font-bold uppercase animate-pulse">
               Replay Active
             </div>
           ) : event.status === 'completed' && !isSpinning && !showWinnerBanner ? (
             <>
-              <div className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-2sm font-bold uppercase">
+              <div className="px-3 py-1.5 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 text-2sm font-bold uppercase">
                 Completed
               </div>
               <div className="px-3 py-1.5 rounded-xl bg-secondary border border-border/40 text-2sm font-bold uppercase">
@@ -1012,7 +1022,7 @@ export function DrawRoom() {
                     {remainingItems.map((item) => (
                       <div key={item.id} className="py-2.5 flex items-center justify-between text-2sm transition-all duration-500">
                         <span className="font-semibold">{item.item_value}</span>
-                        <span className="text-3xs px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 font-bold uppercase">
+                        <span className="text-3xs px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-600 font-bold uppercase">
                           Eligible
                         </span>
                       </div>
@@ -1035,6 +1045,15 @@ export function DrawRoom() {
                     : `Round ${Math.min(event.select_count, selectedItems.length + 1)} of ${event.select_count}`
                   }
                 </div>
+
+                {/* Mute/Unmute Control */}
+                <button
+                  onClick={toggleMute}
+                  className="absolute top-4 right-4 z-20 p-2 rounded-xl bg-secondary hover:bg-border/30 border border-border/40 text-muted-foreground hover:text-foreground transition-all cursor-pointer shadow-sm active:scale-95"
+                  title={muted ? "Unmute Sounds" : "Mute Sounds"}
+                >
+                  {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                </button>
 
                 {/* Winner Fanfare Banner */}
                 {showWinnerBanner && winnerItem && (
@@ -1099,7 +1118,7 @@ export function DrawRoom() {
                     {selectedItems.map((item, idx) => (
                       <div key={item.id} className="p-3.5 rounded-xl bg-secondary/40 border border-border/20 flex items-center justify-between animate-fade-in">
                         <div className="flex items-center gap-2.5">
-                          <span className="w-6 h-6 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-xs font-black flex items-center justify-center shrink-0">
+                          <span className="w-6 h-6 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 text-xs font-black flex items-center justify-center shrink-0">
                             {idx + 1}.
                           </span>
                           <span className="font-bold text-2sm">{item.item_value}</span>
@@ -1147,7 +1166,7 @@ export function DrawRoom() {
                 title={isReplayPaused ? 'Resume Replay' : 'Pause Replay'}
               >
                 {isReplayPaused ? (
-                  <Play className="w-4 h-4 fill-current text-green-600 dark:text-green-400" />
+                  <Play className="w-4 h-4 fill-current text-green-600" />
                 ) : (
                   <Pause className="w-4 h-4 fill-current text-primary" />
                 )}

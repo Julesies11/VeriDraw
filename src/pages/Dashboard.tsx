@@ -363,9 +363,9 @@ export function Dashboard() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {events.map((event) => {
                   const statusColors: Record<string, string> = {
-                    scheduled: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border-yellow-500/20',
-                    active: 'bg-green-500/10 text-green-600 dark:text-green-400 border-green-500/20',
-                    completed: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+                    scheduled: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',
+                    active: 'bg-green-500/10 text-green-600 border-green-500/20',
+                    completed: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
                   };
     
                   const statusIcons: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -391,7 +391,7 @@ export function Dashboard() {
                         <div className="flex items-center justify-between mb-3">
                           {event.status === 'completed' ? (
                             <div className="flex gap-2">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-2xs font-bold uppercase">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-600 text-2xs font-bold uppercase">
                                 Completed
                               </span>
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-secondary text-foreground text-2xs font-bold uppercase">

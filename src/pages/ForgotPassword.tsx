@@ -59,7 +59,7 @@ export function ForgotPassword() {
       )}
 
       {successMsg && (
-        <div className="mb-4 p-4 rounded-xl bg-green-500/10 text-green-600 dark:text-green-400 text-sm border border-green-500/20 text-center">
+        <div className="mb-4 p-4 rounded-xl bg-green-500/10 text-green-600 text-sm border border-green-500/20 text-center">
           {successMsg}
         </div>
       )}
