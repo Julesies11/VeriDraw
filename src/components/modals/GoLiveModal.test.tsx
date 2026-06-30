@@ -63,7 +63,7 @@ describe('GoLiveModal', () => {
     fireEvent.change(input, { target: { value: 'My Test Event' } });
 
     // Submit form (default isScheduled = true)
-    fireEvent.click(getByText('Continue'));
+    fireEvent.click(getByText('Go Live'));
 
     expect(onConfirm).toHaveBeenCalledWith(
       'My Test Event',

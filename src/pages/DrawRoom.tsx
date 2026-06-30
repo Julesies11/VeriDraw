@@ -194,6 +194,13 @@ export function DrawRoom() {
     eventRef.current = event;
   }, [event]);
 
+  // Scroll to top when the draw status shifts to completed
+  useEffect(() => {
+    if (event?.status === 'completed') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [event?.status]);
+
   // Listen to session status changes from DB to trigger the spin animation (supports host-less draws)
   useEffect(() => {
     if (isReplaying) return;
@@ -658,15 +665,6 @@ export function DrawRoom() {
 
         {/* Live Counters & Sharing */}
         <div className="flex flex-wrap items-center gap-3">
-          {inviteCode && (
-            <button
-              onClick={() => setIsInviteModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-2sm font-semibold hover:bg-primary/15 transition-all cursor-pointer shadow-sm shadow-primary/5 active:scale-95"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>Invite Code: <span className="font-mono font-black tracking-wider">{inviteCode}</span></span>
-            </button>
-          )}
 
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-2sm font-semibold">
             <Users className="w-4 h-4 animate-pulse" />
@@ -845,115 +843,54 @@ export function DrawRoom() {
 
       {/* STAGE 2: Live Draw Workspace (Event is Active or Completed) */}
       {(event.status === 'active' || event.status === 'completed') && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Panel: Remaining Candidate Pool */}
-          <div className="glass border border-border/40 rounded-2xl p-4 sm:p-5 space-y-4 flex flex-col justify-between min-h-[250px] lg:min-h-[480px] order-2 lg:order-1">
-            <div>
-              <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
-                {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
-                  <>
-                    <List className="w-4.5 h-4.5 text-primary" />
-                    Entry Pool ({items.length})
-                  </>
-                ) : (
-                  <>
-                    <Users className="w-4.5 h-4.5 text-primary" />
-                    Remaining Pool ({remainingItems.length} left)
-                  </>
-                )}
-              </h2>
-              <div className="divide-y divide-border/20 max-h-[300px] overflow-y-auto pr-1">
-                {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
-                  items.map((item, idx) => (
-                    <div key={item.id} className="py-2.5 flex items-center justify-between text-2sm animate-fade-in">
-                      <span className="font-semibold">{item.item_value}</span>
-                      <span className="text-3xs px-2 py-0.5 rounded bg-secondary/80 border border-border/10 text-muted-foreground uppercase font-bold">
-                        #{idx + 1}
-                      </span>
-                    </div>
-                  ))
-                ) : (
-                  <>
-                    {remainingItems.map((item) => (
-                      <div key={item.id} className="py-2.5 flex items-center justify-between text-2sm transition-all duration-500">
-                        <span className="font-semibold">{item.item_value}</span>
-                        <span className="text-3xs px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 font-bold uppercase">
-                          Eligible
-                        </span>
-                      </div>
-                    ))}
-                    {remainingItems.length === 0 && (
-                      <p className="text-2sm text-muted-foreground py-6 text-center">
-                        Entry pool exhausted. Selections complete.
-                      </p>
-                    )}
-                  </>
-                )}
+        <>
+          {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
+            /* Centered Completed Results Panel */
+            <div className="max-w-xl mx-auto p-4 sm:p-6 glass border border-border/40 rounded-2xl flex flex-col items-center relative space-y-5 animate-fade-in">
+              <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Trophy className="w-6 h-6 text-yellow-500" />
               </div>
-            </div>
-          </div>
+              <div className="text-center space-y-0.5 shrink-0">
+                <h3 className="text-lg font-black font-heading tracking-tight text-foreground">
+                  Drawing Concluded!
+                </h3>
+              </div>
 
-          {/* Center Panel: Roulette Wheel */}
-          <div className="lg:col-span-1 flex flex-col items-center justify-center p-4 sm:p-6 glass border border-border/40 rounded-2xl min-h-[450px] lg:min-h-[550px] relative overflow-hidden order-1 lg:order-2">
-            {event.status === 'completed' && !isSpinning && !showWinnerBanner && !isReplaying ? (
-              <div className="w-full flex flex-col items-center justify-start space-y-5 animate-fade-in">
-                <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <Trophy className="w-6 h-6 text-yellow-500" />
-                </div>
-                <div className="text-center space-y-0.5 shrink-0">
-                  <h3 className="text-lg font-black font-heading tracking-tight text-foreground">
-                    Drawing Concluded!
-                  </h3>
-                </div>
-
-                {/* Selections List */}
-                <div className="w-full max-w-sm space-y-2 max-h-[160px] overflow-y-auto pr-1 shrink-0">
-                  {selectedItems.map((item, idx) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between p-2.5 rounded-xl bg-secondary border border-border/40 shadow-sm"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className="w-5.5 h-5.5 rounded-lg bg-primary/15 text-primary font-bold text-2xs flex items-center justify-center">
-                          {idx + 1}.
-                        </span>
-                        <span className="text-2sm font-bold text-foreground truncate max-w-[200px]">
-                          {item.item_value}
-                        </span>
-                      </div>
-                      {item.selected_at && (
-                        <span className="text-3xs text-muted-foreground font-mono">
-                          {new Date(item.selected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Verification Card */}
-                <div className="w-full max-w-sm p-4 rounded-xl bg-secondary/40 border border-border/30 text-left space-y-3 text-2xs shrink-0">
-                  <div className="border-b border-border/20 pb-2">
-                    <div className="flex items-center gap-1.5 font-bold text-foreground">
-                      <span>🔒 Verification</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-muted-foreground">
-                    <div className="self-start pt-0.5">Status:</div>
-                    <div className="text-right flex flex-col items-end">
-                      <span className="text-green-500 font-bold flex items-center justify-end gap-1">
-                        Verified <span className="text-green-500">✔</span>
+              {/* Selections List */}
+              <div className="w-full max-w-sm space-y-2 max-h-[160px] overflow-y-auto pr-1 shrink-0">
+                {selectedItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-secondary border border-border/40 shadow-sm"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-primary/15 text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                        {idx + 1}.
                       </span>
-                      {(() => {
-                        const parentSlug = Array.isArray(event.parent) ? event.parent[0]?.slug : event.parent?.slug;
-                        return parentSlug ? (
-                          <span className="text-3xs text-muted-foreground font-light italic mt-0.5 leading-normal">
-                            Duplicated from {parentSlug}
-                          </span>
-                        ) : null;
-                      })()}
+                      <span className="text-2sm font-bold text-foreground truncate max-w-[180px] shrink-0">
+                        {item.item_value}
+                      </span>
                     </div>
-                    <div className="self-start pt-1">Draw ID:</div>
-                    <div className="font-mono text-right text-foreground font-bold flex items-center justify-end gap-1">
+                    {item.selected_at && (
+                      <span className="text-3xs text-muted-foreground font-mono shrink-0">
+                        {new Date(item.selected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Verification Card */}
+              <div className="w-full max-w-sm p-4 rounded-xl bg-secondary/40 border border-border/30 text-left space-y-3 text-2xs shrink-0">
+                <div className="border-b border-border/20 pb-2">
+                  <div className="flex items-center gap-1.5 font-bold text-foreground">
+                    <span>🔒 Verification</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-muted-foreground">
+                  <div className="self-start pt-1">Draw ID:</div>
+                  <div className="text-right flex flex-col items-end">
+                    <div className="font-mono text-foreground font-bold flex items-center justify-end gap-1">
                       <span>{event ? `VD-${event.id.substring(0, 6).toUpperCase()}` : 'N/A'}</span>
                       {event && (
                         <button
@@ -969,102 +906,133 @@ export function DrawRoom() {
                         </button>
                       )}
                     </div>
-                    <div>Seed:</div>
-                    <div className="font-mono text-right text-foreground truncate max-w-[180px] select-all" title={event.seed || ''}>
-                      {event.seed || 'N/A'}
-                    </div>
-                    <div>Timestamp:</div>
-                    <div className="text-right text-foreground whitespace-nowrap">
-                      {(() => {
-                        const dateVal = selectedItems.length > 0 && selectedItems[selectedItems.length - 1].selected_at
-                          ? selectedItems[selectedItems.length - 1].selected_at
-                          : (event.updated_at || event.created_at);
-                        return dateVal
-                          ? new Date(dateVal).toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
-                          : 'N/A';
-                      })()}
-                    </div>
-                    <div>Entries:</div>
-                    <div className="text-right text-foreground">{items.length}</div>
-                    <div>Winners:</div>
-                    <div className="text-right text-foreground">{selectedItems.length}</div>
+                    {(() => {
+                      const parentSlug = Array.isArray(event.parent) ? event.parent[0]?.slug : event.parent?.slug;
+                      return parentSlug ? (
+                        <span className="text-3xs text-muted-foreground font-light italic mt-0.5 leading-normal">
+                          Duplicated from {parentSlug}
+                        </span>
+                      ) : null;
+                    })()}
                   </div>
+                  <div>Completed:</div>
+                  <div className="text-right text-foreground whitespace-nowrap">
+                    {(() => {
+                      const dateVal = selectedItems.length > 0 && selectedItems[selectedItems.length - 1].selected_at
+                        ? selectedItems[selectedItems.length - 1].selected_at
+                        : (event.updated_at || event.created_at);
+                      return dateVal
+                        ? new Date(dateVal).toISOString().replace('T', ' ').substring(0, 19) + ' UTC'
+                        : 'N/A';
+                    })()}
+                  </div>
+                  <div>Entries:</div>
+                  <div className="text-right text-foreground">{items.length}</div>
+                  <div>Winners:</div>
+                  <div className="text-right text-foreground">{selectedItems.length}</div>
                 </div>
-
-                {/* Verification Explainer Card */}
-                <div className="w-full max-w-sm p-4 rounded-xl bg-secondary/25 border border-border/20 text-left space-y-2 text-2xs shrink-0 text-muted-foreground leading-relaxed">
-                  <div className="font-bold text-foreground">Verification Method</div>
-                  <div className="font-semibold text-primary">Verifiable Shuffle</div>
-                  <p>
-                    A deterministic shuffle algorithm was used to ensure all entries had equal probability of selection.
-                  </p>
-                  <p className="border-t border-border/10 pt-2 text-3xs italic">
-                    This result can be independently reproduced using the recorded seed.
-                  </p>
-                </div>
-
-                {isHost ? (
-                  <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
-                    <button
-                      onClick={() => setIsShareResultsModalOpen(true)}
-                      className="w-full py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Share2 className="w-4.5 h-4.5" />
-                      Share Results
-                    </button>
-                    <button
-                      onClick={handleCreateNewDraw}
-                      className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Sparkles className="w-4.5 h-4.5" />
-                      Create New Draw
-                    </button>
-                    <button
-                      onClick={handleDuplicateDraw}
-                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Copy className="w-4.5 h-4.5" />
-                      Duplicate & Run Again
-                    </button>
-                    <button
-                      onClick={startReplay}
-                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Play className="w-4 h-4 fill-current text-primary" />
-                      Watch Replay
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
-                    <button
-                      onClick={startReplay}
-                      className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Play className="w-4 h-4 fill-current text-white" />
-                      Watch Replay
-                    </button>
-                    <button
-                      onClick={() => setIsShareResultsModalOpen(true)}
-                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Share2 className="w-4.5 h-4.5 text-primary" />
-                      Share Results
-                    </button>
-                    <div className="w-full p-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center border border-border/20 shrink-0">
-                      This draw is complete and the results are verified.
-                    </div>
-                  </div>
-                )}
               </div>
-            ) : (
-              <>
+
+              {/* Verification Explainer Card */}
+              <div className="w-full max-w-sm p-4 rounded-xl bg-secondary/25 border border-border/20 text-left space-y-2 text-2xs shrink-0 text-muted-foreground leading-relaxed">
+                <div className="font-bold text-foreground">Verification Method</div>
+                <div className="font-semibold text-primary">Verifiable Shuffle</div>
+                <p>
+                  A deterministic shuffle algorithm was used to ensure all entries had equal probability of selection.
+                </p>
+                <p className="border-t border-border/10 pt-2 text-3xs italic">
+                  This result can be independently reproduced using the recorded seed.
+                </p>
+              </div>
+
+              {isHost ? (
+                <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
+                  <button
+                    onClick={() => setIsShareResultsModalOpen(true)}
+                    className="w-full py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="w-4.5 h-4.5" />
+                    Share Results
+                  </button>
+                  <button
+                    onClick={handleCreateNewDraw}
+                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4.5 h-4.5" />
+                    Create New Draw
+                  </button>
+                  <button
+                    onClick={handleDuplicateDraw}
+                    className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Copy className="w-4.5 h-4.5" />
+                    Duplicate & Run Again
+                  </button>
+                  <button
+                    onClick={startReplay}
+                    className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4 fill-current text-primary" />
+                    Watch Replay
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
+                  <button
+                    onClick={startReplay}
+                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-4 h-4 fill-current text-white" />
+                    Watch Replay
+                  </button>
+                  <button
+                    onClick={() => setIsShareResultsModalOpen(true)}
+                    className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="w-4.5 h-4.5 text-primary" />
+                    Share Results
+                  </button>
+                  <div className="w-full p-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center border border-border/20 shrink-0">
+                    This draw is complete and the results are verified.
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Active Draw Grid */
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Panel: Remaining Candidate Pool */}
+              <div className="glass border border-border/40 rounded-2xl p-4 sm:p-5 space-y-4 flex flex-col justify-between min-h-[250px] lg:min-h-[480px] order-2 lg:order-1">
+                <div>
+                  <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
+                    <Users className="w-4.5 h-4.5 text-primary" />
+                    Remaining Pool ({remainingItems.length} left)
+                  </h2>
+                  <div className="divide-y divide-border/20 max-h-[300px] overflow-y-auto pr-1">
+                    {remainingItems.map((item) => (
+                      <div key={item.id} className="py-2.5 flex items-center justify-between text-2sm transition-all duration-500">
+                        <span className="font-semibold">{item.item_value}</span>
+                        <span className="text-3xs px-2 py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 font-bold uppercase">
+                          Eligible
+                        </span>
+                      </div>
+                    ))}
+                    {remainingItems.length === 0 && (
+                      <p className="text-2sm text-muted-foreground py-6 text-center">
+                        Entry pool exhausted. Selections complete.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Center Panel: Roulette Wheel */}
+              <div className="lg:col-span-1 flex flex-col items-center justify-center p-4 sm:p-6 glass border border-border/40 rounded-2xl min-h-[450px] lg:min-h-[550px] relative overflow-hidden order-1 lg:order-2">
                 {/* Header Round Marker */}
                 <div className="absolute top-4 z-20 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-2xs font-bold uppercase tracking-wider">
                   {isReplaying
                     ? `Replay: Round ${Math.min(event.select_count, replayStep)} of ${event.select_count}`
-                    : event.status === 'completed' && !isSpinning && !showWinnerBanner
-                      ? 'Drawing Concluded! 🏆'
-                      : `Round ${Math.min(event.select_count, selectedItems.length + 1)} of ${event.select_count}`
+                    : `Round ${Math.min(event.select_count, selectedItems.length + 1)} of ${event.select_count}`
                   }
                 </div>
 
@@ -1118,42 +1086,42 @@ export function DrawRoom() {
                     </div>
                   )}
                 </div>
-              </>
-            )}
-          </div>
+              </div>
 
-          {/* Right Panel: Selections List */}
-          <div className="glass border border-border/40 rounded-2xl p-4 sm:p-5 space-y-4 flex flex-col min-h-[350px] lg:h-[550px] justify-between order-3 lg:order-3">
-            <div className="space-y-4 flex-1 flex flex-col min-h-0">
-              <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
-                🏆 Selections ({selectedItems.length} drawn)
-              </h2>
+              {/* Right Panel: Selections List */}
+              <div className="glass border border-border/40 rounded-2xl p-4 sm:p-5 space-y-4 flex flex-col min-h-[350px] lg:h-[550px] justify-between order-3 lg:order-3">
+                <div className="space-y-4 flex-1 flex flex-col min-h-0">
+                  <h2 className="text-md font-extrabold font-heading flex items-center gap-2 border-b border-border/20 pb-2.5">
+                    🏆 Selections ({selectedItems.length} drawn)
+                  </h2>
 
-              <div className="flex-1 overflow-y-auto pr-1 space-y-2.5">
-                {selectedItems.map((item, idx) => (
-                  <div key={item.id} className="p-3.5 rounded-xl bg-secondary/40 border border-border/20 flex items-center justify-between animate-fade-in">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-6 h-6 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-xs font-black flex items-center justify-center shrink-0">
-                        {idx + 1}.
-                      </span>
-                      <span className="font-bold text-2sm">{item.item_value}</span>
-                    </div>
-                    {item.selected_at && (
-                      <span className="text-3xs text-muted-foreground font-mono">
-                        {new Date(item.selected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                      </span>
+                  <div className="flex-1 overflow-y-auto pr-1 space-y-2.5">
+                    {selectedItems.map((item, idx) => (
+                      <div key={item.id} className="p-3.5 rounded-xl bg-secondary/40 border border-border/20 flex items-center justify-between animate-fade-in">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-6 h-6 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-xs font-black flex items-center justify-center shrink-0">
+                            {idx + 1}.
+                          </span>
+                          <span className="font-bold text-2sm">{item.item_value}</span>
+                        </div>
+                        {item.selected_at && (
+                          <span className="text-3xs text-muted-foreground font-mono">
+                            {new Date(item.selected_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {selectedItems.length === 0 && (
+                      <p className="text-2sm text-muted-foreground py-10 text-center">
+                        No selections drawn yet.
+                      </p>
                     )}
                   </div>
-                ))}
-                {selectedItems.length === 0 && (
-                  <p className="text-2sm text-muted-foreground py-10 text-center">
-                    No selections drawn yet.
-                  </p>
-                )}
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          )}
+        </>
       )}
 
       {/* Floating replay controls overlay */}

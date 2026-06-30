@@ -22,16 +22,27 @@ export function Login() {
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const resetForm = (full = false) => {
+    setFormData((prev) => ({
+      name: full ? '' : prev.name,
+      email: full ? '' : prev.email,
+      password: '',
+      confirmPassword: '',
+    }));
+    setError('');
+    setSuccessMsg('');
   };
 
   const handleGoogleSignIn = async () => {
@@ -70,17 +81,40 @@ export function Login() {
  
     try {
       if (isSignUp) {
-        if (!formData.name.trim()) {
-          throw new Error('Name is required.');
+        const trimmedName = formData.name.trim();
+        const trimmedEmail = formData.email.trim();
+        const password = formData.password;
+        const confirmPassword = formData.confirmPassword;
+
+        if (!trimmedName) {
+          throw new Error('Full Name is required.');
         }
-        await register(formData.email, formData.password, formData.name);
-        setSuccessMsg('Sign up successful! You can now log in.');
+
+        // Basic email format check
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+          throw new Error('Please enter a valid email address.');
+        }
+
+        // Password length check
+        if (password.length < 6) {
+          throw new Error('Password must be at least 6 characters long.');
+        }
+
+        // Password confirmation matching check
+        if (password !== confirmPassword) {
+          throw new Error('Passwords do not match.');
+        }
+
+        await register(trimmedEmail, password, trimmedName);
+        setSuccessMsg('Sign up successful! Please check your email for a confirmation link to verify your account before logging in.');
+        resetForm(true);
         setIsSignUp(false);
       } else if (isMagicLink) {
         await signInWithMagicLink(formData.email);
         setSuccessMsg('Check your email for the magic sign-in link!');
       } else {
-        await login(formData.email, formData.password);
+        await login(formData.email.trim(), formData.password);
         const state = location.state as { from?: string } | null;
         navigate(state?.from || ROUTES.DASHBOARD);
       }
@@ -141,6 +175,7 @@ export function Login() {
                   required
                   value={formData.name}
                   onChange={handleChange}
+                  autoComplete="name"
                   placeholder="e.g. John Doe"
                   className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
                 />
@@ -164,6 +199,7 @@ export function Login() {
                 required
                 value={formData.email}
                 onChange={handleChange}
+                autoComplete="email"
                 placeholder="your.name@domain.com"
                 className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
               />
@@ -171,36 +207,63 @@ export function Login() {
           </div>
 
           {(isSignUp || !isMagicLink) && (
-            <div className="space-y-1.5">
-              <div className="flex justify-between items-center">
-                <label className="text-2sm font-semibold tracking-wide" htmlFor="password">
-                  Password
-                </label>
-                {!isSignUp && (
-                  <button
-                    type="button"
-                    onClick={() => navigate(ROUTES.FORGOT_PASSWORD)}
-                    className="text-2xs font-semibold text-primary hover:underline cursor-pointer"
-                  >
-                    Forgot Password?
-                  </button>
-                )}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <label className="text-2sm font-semibold tracking-wide" htmlFor="password">
+                    Password
+                  </label>
+                  {!isSignUp && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(ROUTES.FORGOT_PASSWORD)}
+                      className="text-2xs font-semibold text-primary hover:underline cursor-pointer"
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
+                </div>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-3 text-muted-foreground">
+                    <Lock className="w-4.5 h-4.5" />
+                  </span>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    value={formData.password}
+                    onChange={handleChange}
+                    autoComplete={isSignUp ? "new-password" : "current-password"}
+                    placeholder="••••••••"
+                    className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                  />
+                </div>
               </div>
-              <div className="relative">
-                <span className="absolute left-3.5 top-3 text-muted-foreground">
-                  <Lock className="w-4.5 h-4.5" />
-                </span>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  placeholder="••••••••"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
-                />
-              </div>
+
+              {isSignUp && (
+                <div className="space-y-1.5">
+                  <label className="text-2sm font-semibold tracking-wide" htmlFor="confirmPassword">
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-3 text-muted-foreground">
+                      <Lock className="w-4.5 h-4.5" />
+                    </span>
+                    <input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      required
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      autoComplete="new-password"
+                      placeholder="••••••••"
+                      className="w-full pl-11 pr-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -220,8 +283,7 @@ export function Login() {
                 type="button"
                 onClick={() => {
                   setIsMagicLink((prev) => !prev);
-                  setError('');
-                  setSuccessMsg('');
+                  resetForm(false);
                 }}
                 className="text-2xs font-semibold text-primary hover:underline cursor-pointer"
               >
@@ -265,8 +327,7 @@ export function Login() {
                 onClick={() => {
                   setIsSignUp(false);
                   setIsMagicLink(false);
-                  setError('');
-                  setSuccessMsg('');
+                  resetForm(true);
                 }}
                 className="font-semibold text-primary hover:underline cursor-pointer"
               >
@@ -281,8 +342,7 @@ export function Login() {
                 onClick={() => {
                   setIsSignUp(true);
                   setIsMagicLink(false);
-                  setError('');
-                  setSuccessMsg('');
+                  resetForm(true);
                 }}
                 className="font-semibold text-primary hover:underline cursor-pointer"
               >

@@ -108,7 +108,7 @@ export function Dashboard() {
           },
           lines
         );
-        navigate(ROUTES.DRAW_ROOM(newEvent.slug), { state: { autoOpenInvite: true } });
+        navigate(ROUTES.DRAW_ROOM(newEvent.slug));
       } catch (err) {
         console.error('Failed to auto-upgrade quick draw:', err);
         void logErrorToDb(err, { context: 'Dashboard.checkQuickDrawUpgrade' });

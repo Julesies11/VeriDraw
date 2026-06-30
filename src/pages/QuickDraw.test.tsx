@@ -1,7 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QuickDraw } from './QuickDraw';
+
+afterEach(() => {
+  cleanup();
+  document.body.innerHTML = '';
+});
 
 // Mock useAuth
 vi.mock('@/hooks/useAuth', () => ({
@@ -24,26 +29,29 @@ describe('QuickDraw Page Smoke Test', () => {
     );
 
     expect(getByRole('heading', { name: 'Quick Draw' })).toBeDefined();
-    expect(getByRole('heading', { name: 'Add entries' })).toBeDefined();
-    expect(getByText('Paste List')).toBeDefined();
+    expect(getByRole('heading', { name: '1. Add entries' })).toBeDefined();
+    expect(getByText('Enter List')).toBeDefined();
   });
 
-  it('opens the Go Live Modal when clicking Go Live button with valid items', () => {
-    const { getByText, getAllByText, container } = render(
+  it('opens the Go Live Modal when clicking Go Live & Invite Viewers with valid entries', () => {
+    const { getByText, container } = render(
       <MemoryRouter>
         <QuickDraw />
       </MemoryRouter>
     );
+
+    // Verify Step 1 combined setup sections are rendered
+    expect(getByText('1. Add entries')).toBeTruthy();
+    expect(getByText('2. Draw Settings')).toBeTruthy();
 
     // Enter entries into input textarea
     const textarea = container.querySelector('textarea');
     expect(textarea).toBeTruthy();
     fireEvent.change(textarea!, { target: { value: "Entry 1\nEntry 2" } });
 
-    // Click Go Live & Invite Viewers button
-    const goLiveBtns = getAllByText('Go Live & Invite Viewers');
-    const activeBtn = goLiveBtns.find(btn => !btn.hasAttribute('disabled')) || goLiveBtns[0];
-    fireEvent.click(activeBtn);
+    // Click Go Live Instead
+    const goLiveBtn = getByText('Go Live Instead');
+    fireEvent.click(goLiveBtn);
 
     // Verify modal header is rendered
     expect(getByText('Create Live Event')).toBeTruthy();

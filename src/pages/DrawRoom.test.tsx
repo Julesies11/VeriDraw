@@ -82,17 +82,17 @@ describe('DrawRoom Page Tests', () => {
 
   afterEach(() => {
     cleanup();
+    document.body.innerHTML = '';
   });
 
   it('renders without crashing and displays the event name and candidate entries', () => {
-    const { getByText, getByRole, getAllByText } = render(
+    const { getByRole, getAllByText } = render(
       <MemoryRouter>
         <DrawRoom />
       </MemoryRouter>
     );
 
     expect(getByRole('heading', { name: 'Test Draw Room Event' })).toBeDefined();
-    expect(getByText(/Invite Code/i)).toBeDefined();
     expect(getAllByText('Item 1').length).toBeGreaterThan(0);
     expect(getAllByText('Item 2').length).toBeGreaterThan(0);
   });
@@ -132,6 +132,9 @@ describe('DrawRoom Page Tests', () => {
 
   it('invite code badge displays the 6-char suffix extracted from the slug', () => {
     // slug = 'test-draw-room-event-njrc0l' → last segment = 'njrc0l' → uppercase 'NJRC0L'
+    mockEventState.event.status = 'scheduled';
+    mockEventState.event.scheduled_start_time = new Date(Date.now() + 3600000).toISOString();
+
     const { getByText } = render(
       <MemoryRouter>
         <DrawRoom />

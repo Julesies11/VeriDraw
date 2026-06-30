@@ -57,13 +57,15 @@ export function ShareResultsModal({
       .map((w, idx) => `${idx + 1}. ${w.item_value}`)
       .join('\n');
 
+    const winnerLabel = sortedWinners.length === 1 ? 'Winner:' : 'Winners:';
+
     return [
       `🎉 VeriDraw Results`,
       ``,
       `Event:`,
       eventName,
       ``,
-      `Selected Entries:`,
+      winnerLabel,
       winnerLines,
       ``,
       `Entries: ${totalEntriesCount}`,
@@ -125,7 +127,7 @@ export function ShareResultsModal({
         <div className="text-center space-y-1">
           <h3 className="text-xl font-black font-heading tracking-tight text-foreground">Share Results</h3>
           <p className="text-2sm text-muted-foreground leading-relaxed">
-            Copy the results summary or share it directly to your group chats.
+            Share a verified VeriDraw result with your group chats or copy it for records.
           </p>
         </div>
 
@@ -134,7 +136,7 @@ export function ShareResultsModal({
           <div className="space-y-0.5">
             <span className="text-2sm font-bold text-foreground block">Results Summary</span>
             <span className="text-3xs text-muted-foreground block font-medium">
-              Copy-paste results summary with visual replay link.
+              Copy and paste this summary with replay and verification link:
             </span>
           </div>
           

@@ -5,7 +5,7 @@ import { eventsApi } from '@/api/events';
 import { useDirtyTracker } from '@/hooks/useDirtyTracker';
 import { ROUTES } from '@/config/routes.config';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
-import { ArrowLeft, Save, List, Upload, Settings, FileText, ChevronDown, ChevronUp, Info, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, List, Upload, Settings, FileText, Info, Loader2 } from 'lucide-react';
 
 interface CreateEventFormData {
   name: string;
@@ -54,6 +54,23 @@ function getDuplicatedName(name: string): string {
   return `${cleanName} (Copy)`;
 }
 
+// Helper to format local datetime input string (YYYY-MM-DDTHH:mm)
+function formatLocalDatetime(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const MM = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  return `${yyyy}-${MM}-${dd}T${hh}:${mm}`;
+}
+
+const getInitialStartTime = () => {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() + 10);
+  return formatLocalDatetime(date);
+};
+
 export function CreateEvent() {
   const { user, loading: loadingAuth } = useAuth();
   const navigate = useNavigate();
@@ -63,7 +80,6 @@ export function CreateEvent() {
   
   // Navigation tabs for data entry
   const [activeTab, setActiveTab] = useState<'paste' | 'csv'>('paste');
-  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -72,11 +88,13 @@ export function CreateEvent() {
     }
   }, [user, loadingAuth, navigate]);
 
+  const initialStartTime = React.useMemo(() => getInitialStartTime(), []);
+
   // Form states
-  const [formData, setFormData] = useState<CreateEventFormData>({
+  const [formData, setFormData] = useState<CreateEventFormData>(() => ({
     name: '',
     description: '',
-    scheduled_start_time: '', // empty by default so the user must select a time
+    scheduled_start_time: initialStartTime,
     item_type: 'custom',
     select_count: 1,
     itemsText: '', // Tab A / Tab B parsed text
@@ -84,12 +102,12 @@ export function CreateEvent() {
     enable_public_link: true,
     require_viewer_login: false,
     enable_verifiable_seed: true,
-  });
+  }));
 
-  const originalData: CreateEventFormData = {
+  const originalData: CreateEventFormData = React.useMemo(() => ({
     name: '',
     description: '',
-    scheduled_start_time: '',
+    scheduled_start_time: initialStartTime,
     item_type: 'custom',
     select_count: 1,
     itemsText: '',
@@ -97,20 +115,9 @@ export function CreateEvent() {
     enable_public_link: true,
     require_viewer_login: false,
     enable_verifiable_seed: true,
-  };
+  }), [initialStartTime]);
 
   const [duplicatedFromId, setDuplicatedFromId] = useState<string | null>(null);
-
-  // Helper to format local datetime input string (YYYY-MM-DDTHH:mm)
-  const formatLocalDatetime = (date: Date) => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const yyyy = date.getFullYear();
-    const MM = pad(date.getMonth() + 1);
-    const dd = pad(date.getDate());
-    const hh = pad(date.getHours());
-    const mm = pad(date.getMinutes());
-    return `${yyyy}-${MM}-${dd}T${hh}:${mm}`;
-  };
 
   useEffect(() => {
     const state = location.state as {
@@ -199,6 +206,11 @@ export function CreateEvent() {
       return;
     }
 
+    if (formData.select_count === '') {
+      setError('Please enter the number of winners to draw.');
+      return;
+    }
+
     const itemLines = formData.itemsText
       .split('\n')
       .map((line) => line.trim())
@@ -265,7 +277,7 @@ export function CreateEvent() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(ROUTES.DASHBOARD)}
@@ -281,14 +293,8 @@ export function CreateEvent() {
         </div>
       </div>
 
-      {error && (
-        <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-        {/* Left Column: Configuration */}
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Section 1: Event Details */}
         <div className="p-6 glass border border-border/40 rounded-2xl space-y-5">
           <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2 border-b border-border/20 pb-2.5">
             <Settings className="w-4.5 h-4.5" />
@@ -353,65 +359,9 @@ export function CreateEvent() {
               className="w-full px-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
             />
           </div>
-
-          {/* Collapsible Advanced Settings */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setAdvancedOpen(!advancedOpen)}
-              className="flex items-center gap-1.5 text-2sm font-bold text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <span>{advancedOpen ? 'Hide' : 'Show'} Advanced Settings</span>
-              {advancedOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
-
-            {advancedOpen && (
-              <div className="mt-3 p-4 bg-secondary/50 rounded-xl border border-border/20 space-y-3 animate-fade-in">
-                <div className="flex items-center justify-between gap-4">
-                  <label className="flex items-center gap-2.5 text-2sm font-semibold select-none cursor-pointer">
-                    <input
-                      type="radio"
-                      name="visibility"
-                      value="public"
-                      checked={!formData.require_viewer_login}
-                      onChange={() => setFormData((prev) => ({ ...prev, require_viewer_login: false, enable_public_link: true }))}
-                      className="w-4 h-4 border-border text-primary focus:ring-ring"
-                    />
-                    <span>Public — anyone with the link can watch</span>
-                  </label>
-                  <div className="relative group shrink-0">
-                    <Info className="w-4 h-4 text-muted-foreground/75 hover:text-foreground transition-colors cursor-help" />
-                    <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-popover text-popover-foreground text-2xs rounded-xl border border-border/80 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 leading-normal font-normal">
-                      Allows anyone with the URL to watch the drawing live in real-time.
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <label className="flex items-center gap-2.5 text-2sm font-semibold select-none cursor-pointer">
-                    <input
-                      type="radio"
-                      name="visibility"
-                      value="private"
-                      checked={formData.require_viewer_login}
-                      onChange={() => setFormData((prev) => ({ ...prev, require_viewer_login: true, enable_public_link: false }))}
-                      className="w-4 h-4 border-border text-primary focus:ring-ring"
-                    />
-                    <span>Private — viewers must be signed in to watch</span>
-                  </label>
-                  <div className="relative group shrink-0">
-                    <Info className="w-4 h-4 text-muted-foreground/75 hover:text-foreground transition-colors cursor-help" />
-                    <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-popover text-popover-foreground text-2xs rounded-xl border border-border/80 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 leading-normal font-normal">
-                      Restricts access to the drawing room to signed-in users only.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
-        {/* Right Column: Candidates Entry */}
+        {/* Section 2: Entries */}
         <div className="p-6 glass border border-border/40 rounded-2xl space-y-5">
           <div className="flex items-center justify-between border-b border-border/20 pb-2.5">
             <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2">
@@ -433,7 +383,7 @@ export function CreateEvent() {
                 activeTab === 'paste' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
               }`}
             >
-              Paste List
+              Enter List
             </button>
             <button
               type="button"
@@ -450,7 +400,7 @@ export function CreateEvent() {
           {activeTab === 'paste' && (
             <div className="space-y-1.5">
               <label className="text-2sm font-semibold text-muted-foreground">
-                Paste entries (one per line)
+                Enter or paste entries (one per line)
               </label>
               <textarea
                 name="itemsText"
@@ -499,27 +449,82 @@ export function CreateEvent() {
               )}
             </div>
           )}
+        </div>
 
+        {/* Section 3: Privacy Settings */}
+        <div className="p-6 glass border border-border/40 rounded-2xl space-y-5">
+          <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2 border-b border-border/20 pb-2.5">
+            <Info className="w-4.5 h-4.5" />
+            3. Privacy Settings
+          </h2>
 
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <label className="flex items-center gap-2.5 text-2sm font-semibold select-none cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="public"
+                  checked={!formData.require_viewer_login}
+                  onChange={() => setFormData((prev) => ({ ...prev, require_viewer_login: false, enable_public_link: true }))}
+                  className="w-4 h-4 border-border text-primary focus:ring-ring"
+                />
+                <span>Public — anyone with the link can watch</span>
+              </label>
+              <div className="relative group shrink-0">
+                <Info className="w-4 h-4 text-muted-foreground/75 hover:text-foreground transition-colors cursor-help" />
+                <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-popover text-popover-foreground text-2xs rounded-xl border border-border/80 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 leading-normal font-normal">
+                  Allows anyone with the URL to watch the drawing live in real-time.
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <label className="flex items-center gap-2.5 text-2sm font-semibold select-none cursor-pointer">
+                <input
+                  type="radio"
+                  name="visibility"
+                  value="private"
+                  checked={formData.require_viewer_login}
+                  onChange={() => setFormData((prev) => ({ ...prev, require_viewer_login: true, enable_public_link: false }))}
+                  className="w-4 h-4 border-border text-primary focus:ring-ring"
+                />
+                <span>Private — viewers must be signed in to watch</span>
+              </label>
+              <div className="relative group shrink-0">
+                <Info className="w-4 h-4 text-muted-foreground/75 hover:text-foreground transition-colors cursor-help" />
+                <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-popover text-popover-foreground text-2xs rounded-xl border border-border/80 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 leading-normal font-normal">
+                  Restricts access to the drawing room to signed-in users only.
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Footer submit action */}
-        <div className="lg:col-span-2 pt-4 border-t border-border/20 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(ROUTES.DASHBOARD)}
-            className="px-5 py-2.5 rounded-xl hover:bg-secondary text-sm font-semibold text-secondary-foreground transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading || !isDirty}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-          >
-            <Save className="w-4.5 h-4.5" />
-            {loading ? 'Creating...' : 'Create Event'}
-          </button>
+        <div className="pt-4 border-t border-border/20 flex flex-col gap-4">
+          {error && (
+            <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
+              {error}
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(ROUTES.DASHBOARD)}
+              className="px-5 py-2.5 rounded-xl hover:bg-secondary text-sm font-semibold text-secondary-foreground transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !isDirty}
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+            >
+              <Save className="w-4.5 h-4.5" />
+              {loading ? 'Creating...' : 'Create Event'}
+            </button>
+          </div>
         </div>
       </form>
     </div>

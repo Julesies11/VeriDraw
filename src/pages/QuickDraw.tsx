@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
-import { ArrowLeft, Play, Trophy, Sparkles, Upload, List, Save, Copy, Share2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, Trophy, Sparkles, Upload, List, Save, Copy, Share2, Settings } from 'lucide-react';
 import { RouletteWheel } from '@/components/roulette/RouletteWheel';
 import confetti from 'canvas-confetti';
 import { eventsApi } from '@/api/events';
@@ -44,6 +44,52 @@ export function QuickDraw() {
   const [seed, setSeed] = useState<string | null>(null);
   const [isGoLiveModalOpen, setIsGoLiveModalOpen] = useState(false);
   const [isShareResultsModalOpen, setIsShareResultsModalOpen] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
+
+
+  const handleStartLocalDraw = () => {
+    setError('');
+    if (items.length < 2) {
+      setError('Please add at least 2 entries to run a draw.');
+      return;
+    }
+    if (selectCount === '') {
+      setError('Please enter the number of winners to draw.');
+      return;
+    }
+    const targetCount = selectCount;
+    if (isNaN(targetCount) || targetCount <= 0) {
+      setError('Number of winners must be at least 1.');
+      return;
+    }
+    if (targetCount > items.length) {
+      setError(`Select count (${targetCount}) cannot exceed the number of entries supplied (${items.length}).`);
+      return;
+    }
+    setStep(2);
+  };
+
+  const handleGoLiveClick = () => {
+    setError('');
+    if (items.length < 2) {
+      setError('Please add at least 2 entries before going live.');
+      return;
+    }
+    if (selectCount === '') {
+      setError('Please enter the number of winners to draw.');
+      return;
+    }
+    const targetCount = selectCount;
+    if (isNaN(targetCount) || targetCount <= 0) {
+      setError('Number of winners must be at least 1.');
+      return;
+    }
+    if (targetCount > items.length) {
+      setError(`Select count (${targetCount}) cannot exceed the number of entries supplied (${items.length}).`);
+      return;
+    }
+    setIsGoLiveModalOpen(true);
+  };
 
   // Derived lists for rendering
   const activeItems = useMemo(() => {
@@ -276,14 +322,10 @@ export function QuickDraw() {
     setCompletedTimestamp(null);
     setSeed(null);
     setDuplicatedFromSlug(null);
+    setStep(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Duplicate settings + entries (removes selected state but keeps entries intact)
-  const handleDuplicateDraw = () => {
-    setDuplicatedFromSlug(completedDrawId);
-    setSeed(null);
-    handleReset();
-  };
 
   // Dismiss winner banner smoothly
   const handleDismissWinner = () => {
@@ -327,7 +369,7 @@ export function QuickDraw() {
           lines
         );
         setIsGoLiveModalOpen(false);
-        navigate(ROUTES.DRAW_ROOM(newEvent.slug), { state: { autoOpenInvite: true } });
+        navigate(ROUTES.DRAW_ROOM(newEvent.slug));
       } else {
         // Anonymous: Save candidate state to sessionStorage and navigate to Login
         sessionStorage.setItem(
@@ -358,57 +400,39 @@ export function QuickDraw() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/20 pb-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate(ROUTES.DASHBOARD)}
+            onClick={() => {
+              if (step > 1) {
+                if (confirm('Are you sure you want to go back? This will reset the current drawing progress.')) {
+                  handleReset();
+                  setStep(1);
+                }
+              } else {
+                navigate(ROUTES.DASHBOARD);
+              }
+            }}
             className="p-2.5 rounded-xl hover:bg-secondary border border-border/40 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-            title="Back to Dashboard"
+            title="Back"
           >
             <ArrowLeft className="w-4.5 h-4.5" />
           </button>
           <div>
-            <span className="text-2xs font-extrabold uppercase text-primary tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 animate-pulse" /> Instant Local Picker
-            </span>
             <h1 className="text-2xl md:text-3xl font-black font-heading tracking-tight mt-0.5">
               Quick Draw
             </h1>
+            <p className="text-2xs text-muted-foreground mt-1 max-w-sm leading-normal">
+              Create an instant random selection. No account required.
+            </p>
           </div>
         </div>
-
-        <button
-          onClick={() => {
-            if (items.length === 0) {
-              setError('Please provide at least one item before going live.');
-              return;
-            }
-            const targetCount = selectCount === '' ? 1 : selectCount;
-            if (targetCount > items.length) {
-              setError(`Select count (${targetCount}) cannot exceed the number of items supplied (${items.length}).`);
-              return;
-            }
-            setIsGoLiveModalOpen(true);
-          }}
-          disabled={loading || items.length === 0}
-          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer whitespace-nowrap"
-        >
-          <Save className="w-4.5 h-4.5" />
-          Go Live & Invite Viewers
-        </button>
       </div>
 
-      {error && (
-        <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20 text-center">
-          {error}
-        </div>
-      )}
-
-      {/* Main Responsive Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Candidate entries input */}
-        <div className="lg:col-span-4 p-4 sm:p-6 glass border border-border/40 rounded-2xl space-y-5 order-2 lg:order-1">
+      {/* STEP 1: Setup Draw */}
+      {step === 1 && (
+        <div className="max-w-xl mx-auto p-4 sm:p-6 glass border border-border/40 rounded-2xl space-y-5">
           <div className="flex items-center justify-between border-b border-border/20 pb-2.5">
             <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2">
               <List className="w-4.5 h-4.5" />
-              Add entries
+              1. Add entries
             </h2>
             <span className="text-2xs px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 text-primary font-bold">
               Total: {items.length}
@@ -424,7 +448,7 @@ export function QuickDraw() {
                 activeTab === 'paste' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'
               }`}
             >
-              Paste List
+              Enter List
             </button>
             <button
               type="button"
@@ -441,9 +465,10 @@ export function QuickDraw() {
           {activeTab === 'paste' && (
             <div className="space-y-1.5">
               <label className="text-2sm font-semibold text-muted-foreground">
-                Paste names (one per line)
+                Enter or paste entries (one per line)
               </label>
               <textarea
+                id="entry-textarea"
                 rows={8}
                 value={itemsText}
                 onChange={(e) => updateItemsFromText(e.target.value)}
@@ -475,12 +500,14 @@ export function QuickDraw() {
           )}
 
           {/* Select count picker */}
-          <div className="space-y-1.5 pt-2">
-            <div className="flex items-center gap-1.5">
-              <label className="text-2sm font-semibold text-muted-foreground">
-                How many winners should be drawn?
-              </label>
-            </div>
+          <div className="space-y-1.5 pt-4 border-t border-border/20">
+            <h2 className="text-md font-extrabold font-heading text-primary flex items-center gap-2 pb-1.5">
+              <Settings className="w-4.5 h-4.5" />
+              2. Draw Settings
+            </h2>
+            <label className="text-2sm font-semibold text-muted-foreground block">
+              How many winners should be drawn?
+            </label>
             <input
               type="number"
               min="1"
@@ -493,12 +520,48 @@ export function QuickDraw() {
               className="w-full px-4 py-2.5 rounded-xl border border-border bg-input text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-all"
             />
           </div>
-        </div>
 
-        {/* Center Column: Wheel Canvas & Controls */}
-        <div className="lg:col-span-5 p-4 sm:p-6 glass border border-border/40 rounded-2xl flex flex-col items-center relative min-h-[380px] lg:min-h-[460px] order-1 lg:order-2">
+          {error && (
+            <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20 text-center animate-fade-in">
+              {error}
+            </div>
+          )}
+
+          <div className="flex flex-col items-center gap-4 pt-6 border-t border-border/20">
+            <button
+              onClick={handleStartLocalDraw}
+              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer whitespace-nowrap font-heading text-base animate-pulse-subtle"
+            >
+              Continue
+              <ArrowRight className="w-5 h-5" />
+            </button>
+            
+            <div className="text-2xs font-extrabold text-muted-foreground/60 uppercase tracking-widest">
+              or
+            </div>
+
+            <div className="w-full flex flex-col items-center gap-2">
+              <button
+                onClick={handleGoLiveClick}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer font-heading"
+              >
+                <Save className="w-4.5 h-4.5" />
+                Go Live Instead
+              </button>
+              <p className="text-3xs text-muted-foreground text-center max-w-xs leading-normal font-medium">
+                Turn this into a scheduled live event and invite spectators.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2: Spin Wheel & Results */}
+      {step === 2 && (
+        <>
           {isCompleted ? (
-            <div className="w-full flex flex-col items-center justify-start space-y-5 animate-fade-in">
+            /* Centered Completed Results Panel */
+            <div className="max-w-xl mx-auto p-4 sm:p-6 glass border border-border/40 rounded-2xl flex flex-col items-center relative space-y-5 animate-fade-in">
               <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
                 <Trophy className="w-6 h-6 text-yellow-500" />
               </div>
@@ -515,15 +578,15 @@ export function QuickDraw() {
                     key={item.id}
                     className="flex items-center justify-between p-2.5 rounded-xl bg-secondary border border-border/40 shadow-sm"
                   >
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-5.5 h-5.5 rounded-lg bg-primary/15 text-primary font-bold text-2xs flex items-center justify-center">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-6 h-6 rounded-lg bg-primary/15 text-primary font-bold text-xs flex items-center justify-center shrink-0">
                         {idx + 1}.
                       </span>
-                      <span className="text-2sm font-bold text-foreground truncate max-w-[200px]">
+                      <span className="text-2sm font-bold text-foreground truncate max-w-[180px] shrink-0">
                         {item.item_value}
                       </span>
                     </div>
-                    <span className="text-3xs font-extrabold text-primary uppercase tracking-wide">
+                    <span className="text-3xs font-extrabold text-primary uppercase tracking-wide shrink-0">
                       Selected Winner
                     </span>
                   </div>
@@ -538,39 +601,31 @@ export function QuickDraw() {
                   </div>
                 </div>
                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-muted-foreground">
-                  <div className="self-start pt-0.5">Status:</div>
+                  <div className="self-start pt-1">Draw ID:</div>
                   <div className="text-right flex flex-col items-end">
-                    <span className="text-green-500 font-bold flex items-center justify-end gap-1">
-                      Verified <span className="text-green-500">✔</span>
-                    </span>
+                    <div className="font-mono text-foreground font-bold flex items-center justify-end gap-1">
+                      <span>{completedDrawId || 'N/A'}</span>
+                      {completedDrawId && (
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}/draw/${completedDrawId}`;
+                            navigator.clipboard.writeText(url);
+                            alert('Draw link copied to clipboard!');
+                          }}
+                          className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+                          title="Copy Share Link"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                     {duplicatedFromSlug && (
                       <span className="text-3xs text-muted-foreground font-light italic mt-0.5 leading-normal">
                         Duplicated from {duplicatedFromSlug}
                       </span>
                     )}
                   </div>
-                  <div className="self-start pt-1">Draw ID:</div>
-                  <div className="font-mono text-right text-foreground font-bold flex items-center justify-end gap-1">
-                    <span>{completedDrawId || 'N/A'}</span>
-                    {completedDrawId && (
-                      <button
-                        onClick={() => {
-                          const url = `${window.location.origin}/draw/${completedDrawId}`;
-                          navigator.clipboard.writeText(url);
-                          alert('Draw link copied to clipboard!');
-                        }}
-                        className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-                        title="Copy Share Link"
-                      >
-                        <Copy className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <div>Seed:</div>
-                  <div className="font-mono text-right text-foreground truncate max-w-[180px] select-all" title={seed || ''}>
-                    {seed || 'N/A'}
-                  </div>
-                  <div>Timestamp:</div>
+                  <div>Completed:</div>
                   <div className="text-right text-foreground whitespace-nowrap">{completedTimestamp || 'N/A'}</div>
                   <div>Entries:</div>
                   <div className="text-right text-foreground">{items.length}</div>
@@ -606,97 +661,119 @@ export function QuickDraw() {
                   <Sparkles className="w-4.5 h-4.5" />
                   Create New Draw
                 </button>
-                <button
-                  onClick={handleDuplicateDraw}
-                  className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  <Copy className="w-4.5 h-4.5" />
-                  Duplicate & Run Again
-                </button>
               </div>
             </div>
           ) : (
-            <>
-              {/* Winner Banner */}
-              {showWinnerBanner && winnerItem && (
-                <div
-                  onClick={handleDismissWinner}
-                  className="absolute top-14 left-4 right-4 z-20 p-4 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg flex flex-col items-center text-center cursor-pointer hover:brightness-105 transition-all animate-bounce"
-                >
-                  <span className="text-2xs font-extrabold tracking-widest uppercase opacity-90 flex items-center gap-1">
-                    <Trophy className="w-3.5 h-3.5" /> Winner Chosen
-                  </span>
-                  <span className="font-heading font-black text-2xl uppercase mt-1 tracking-wide">
-                    {winnerItem.item_value}
-                  </span>
-                </div>
-              )}
-
-              {/* SVG Wheel */}
-              <div className="w-full flex items-center justify-center py-4">
-                <RouletteWheel
-                  items={items}
-                  rotationAngle={rotationAngle}
-                  isSpinning={isSpinning}
-                  spinDurationMs={spinDuration}
-                />
-              </div>
-
-              {/* Local Action Buttons */}
-              <div className="mt-6 z-20 w-full px-2">
-                <button
-                  onClick={handleSpin}
-                  disabled={isSpinning || activeItems.length === 0 || items.filter((i) => i.is_selected).length >= (selectCount || 1)}
-                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none"
-                >
-                  <Play className="w-5 h-5" />
-                  Quick Draw
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Right Column: Selections List */}
-        <div className="lg:col-span-3 p-4 sm:p-6 glass border border-border/40 rounded-2xl space-y-4 order-3 lg:order-3">
-          <div className="border-b border-border/20 pb-2 flex items-center justify-between">
-            <h2 className="text-md font-extrabold font-heading text-foreground flex items-center gap-2">
-              <Trophy className="w-4.5 h-4.5 text-yellow-500" />
-              Selections
-            </h2>
-            <span className="text-2xs font-bold px-2 py-0.5 rounded-lg bg-secondary/80 text-muted-foreground">
-              {selectedItems.length} / {selectCount || 1}
-            </span>
-          </div>
-
-          {selectedItems.length === 0 ? (
-            <div className="py-12 text-center text-2xs text-muted-foreground italic">
-              No items selected yet. Click Spin to draw a winner!
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-              {selectedItems.map((item, idx) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10 shadow-sm animate-fade-in"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary font-bold text-xs flex items-center justify-center">
-                      {idx + 1}.
+            /* Active Draw Grid */
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Left Column: Wheel Canvas & Controls (takes 8 cols) */}
+              <div className="lg:col-span-8 p-4 sm:p-6 glass border border-border/40 rounded-2xl flex flex-col items-center relative min-h-[380px] lg:min-h-[460px]">
+                {/* Winner Banner */}
+                {showWinnerBanner && winnerItem && (
+                  <div
+                    onClick={handleDismissWinner}
+                    className="absolute top-14 left-4 right-4 z-20 p-4 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-lg flex flex-col items-center text-center cursor-pointer hover:brightness-105 transition-all animate-bounce"
+                  >
+                    <span className="text-2xs font-extrabold tracking-widest uppercase opacity-90 flex items-center gap-1">
+                      <Trophy className="w-3.5 h-3.5" /> Winner Chosen
                     </span>
-                    <span className="text-2sm font-semibold text-foreground truncate max-w-[140px]">
-                      {item.item_value}
+                    <span className="font-heading font-black text-2xl uppercase mt-1 tracking-wide">
+                      {winnerItem.item_value}
                     </span>
                   </div>
-                  <span className="text-3xs font-extrabold text-muted-foreground uppercase tracking-wide">
-                    Picked
+                )}
+
+                {selectedItems.length === 0 && !isSpinning && (
+                  <p className="text-2xs text-muted-foreground text-center mb-2 font-medium animate-fade-in">
+                    Everything is ready. Click "Spin Wheel" to begin the draw.
+                  </p>
+                )}
+
+                {/* SVG Wheel */}
+                <div className="w-full flex items-center justify-center py-4">
+                  <RouletteWheel
+                    items={items}
+                    rotationAngle={rotationAngle}
+                    isSpinning={isSpinning}
+                    spinDurationMs={spinDuration}
+                  />
+                </div>
+
+                {error && (
+                  <div className="w-full mt-4 p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20 text-center animate-fade-in">
+                    {error}
+                  </div>
+                )}
+
+                {/* Local Action Buttons */}
+                <div className="mt-6 z-20 w-full px-2 flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleSpin}
+                    disabled={isSpinning || activeItems.length === 0 || items.filter((i) => i.is_selected).length >= (selectCount || 1)}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none"
+                  >
+                    <Play className="w-5 h-5" />
+                    Spin Wheel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm('Are you sure you want to go back? This will reset the current drawing progress.')) {
+                        handleReset();
+                        setStep(1);
+                      }
+                    }}
+                    disabled={isSpinning}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer select-none"
+                  >
+                    Back to Setup
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Selections List */}
+              <div className="lg:col-span-4 p-4 sm:p-6 glass border border-border/40 rounded-2xl space-y-4">
+                <div className="border-b border-border/20 pb-2 flex items-center justify-between">
+                  <h2 className="text-md font-extrabold font-heading text-foreground flex items-center gap-2">
+                    <Trophy className="w-4.5 h-4.5 text-yellow-500" />
+                    Selections
+                  </h2>
+                  <span className="text-2xs font-bold px-2 py-0.5 rounded-lg bg-secondary/80 text-muted-foreground">
+                    {selectedItems.length} / {selectCount || 1}
                   </span>
                 </div>
-              ))}
+
+                {selectedItems.length === 0 ? (
+                  <div className="py-12 text-center text-2xs text-muted-foreground italic">
+                    No items selected yet. Click Spin to draw a winner!
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                    {selectedItems.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10 shadow-sm animate-fade-in"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary font-bold text-xs flex items-center justify-center shrink-0">
+                            {idx + 1}.
+                          </span>
+                          <span className="text-2sm font-semibold text-foreground truncate max-w-[140px] shrink-0">
+                            {item.item_value}
+                          </span>
+                        </div>
+                        <span className="text-3xs font-extrabold text-muted-foreground uppercase tracking-wide shrink-0">
+                          Picked
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </div>
-      </div>
+        </>
+      )}
+
       {/* Go Live Confirmation Modal */}
       {isGoLiveModalOpen && (
         <GoLiveModal
