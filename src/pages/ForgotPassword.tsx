@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
-import { Mail, ArrowLeft, KeyRound } from 'lucide-react';
+import { Mail, ArrowLeft } from 'lucide-react';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 
 export function ForgotPassword() {

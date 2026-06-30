@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfile } from '@/hooks/useProfile';
 import { ROUTES } from '@/config/routes.config';
-import { LogOut, Sparkles, User as UserIcon } from 'lucide-react';
+import { LogOut, User as UserIcon } from 'lucide-react';
 
 interface MainLayoutProps {
   children: React.ReactNode;

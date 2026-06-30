@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { ROUTES } from '@/config/routes.config';
-import { Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
+import { Lock, Mail, User as UserIcon } from 'lucide-react';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 
 export function Login() {
