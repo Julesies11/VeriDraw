@@ -1,7 +1,13 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { QuickDraw } from './QuickDraw';
+
+beforeEach(() => {
+  if (typeof window !== 'undefined') {
+    window.scrollTo = vi.fn() as any;
+  }
+});
 
 afterEach(() => {
   cleanup();
@@ -55,5 +61,19 @@ describe('QuickDraw Page Smoke Test', () => {
 
     // Verify modal header is rendered
     expect(getByText('Create Live Event')).toBeTruthy();
+  });
+
+  it('renders the mobile sticky action bar on Step 1', () => {
+    const { container, getByText } = render(
+      <MemoryRouter>
+        <QuickDraw />
+      </MemoryRouter>
+    );
+
+    // Verify presence of mobile sticky bar wrapper
+    const stickyBar = container.querySelector('.fixed.bottom-0');
+    expect(stickyBar).toBeTruthy();
+    expect(stickyBar?.textContent).toContain('Go Live');
+    expect(stickyBar?.textContent).toContain('Continue');
   });
 });

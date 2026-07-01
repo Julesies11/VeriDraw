@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { eventsApi, type EventRow } from '@/api/events';
 import { ROUTES } from '@/config/routes.config';
-import { PlusCircle, Trash2, Calendar, Eye, CheckCircle, Play } from 'lucide-react';
+import { PlusCircle, Trash2, Calendar, CheckCircle, Play } from 'lucide-react';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 
 export function Dashboard() {
@@ -380,83 +380,84 @@ export function Dashboard() {
                         .filter((item: { is_selected: boolean }) => item.is_selected)
                         .sort((a: { selection_order?: number | null }, b: { selection_order?: number | null }) => (a.selection_order || 0) - (b.selection_order || 0))
                     : [];
-
+    
                   return (
                     <Link
                       key={event.id}
                       to={ROUTES.DRAW_ROOM(event.slug)}
-                      className="group relative flex flex-col justify-between p-5 glass border border-border/40 hover:border-primary/45 rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer block text-left"
+                      className="group relative flex flex-col p-4 glass border border-border/40 hover:border-primary/45 rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 cursor-pointer block text-left"
                     >
-                      <div>
-                        <div className="flex items-center justify-between mb-3">
-                          {event.status === 'completed' ? (
-                            <div className="flex gap-2">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-600 text-2xs font-bold uppercase">
-                                Completed
-                              </span>
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-secondary text-foreground text-2xs font-bold uppercase">
-                                Locked
-                              </span>
-                            </div>
-                          ) : (
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-2xs font-bold uppercase ${
-                                statusColors[event.status] || ''
-                              }`}
-                            >
-                              <StatusIcon className="w-3.5 h-3.5" />
-                              {event.status}
+                      <div className="flex items-center justify-between mb-3">
+                        {event.status === 'completed' ? (
+                          <div className="flex gap-2">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-blue-500/20 bg-blue-500/10 text-blue-600 text-2xs font-bold uppercase">
+                              Completed
                             </span>
-                          )}
-    
-                          <button
-                            onClick={(e) => { e.preventDefault(); handleDelete(event.id, e); }}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
-                            title="Delete Event"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-    
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <h3 className="font-heading font-extrabold text-lg text-foreground group-hover:text-primary transition-colors leading-snug">
-                            {event.event_name}
-                          </h3>
-                          <span className="text-3xs font-mono px-1.5 py-0.5 rounded bg-secondary/80 text-muted-foreground border border-border/10 font-semibold uppercase">
-                            {`VD-${event.id.substring(0, 6).toUpperCase()}`}
-                          </span>
-                        </div>
-    
-                        <div className="mt-1.5 text-2sm text-muted-foreground">
-                          {formatTime(event.scheduled_start_time)}
-                        </div>
-
-                        {winners.length > 0 && (
-                          <div className="mt-4 pt-3 border-t border-border/20 space-y-1">
-                            <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">
-                              Winners:
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-border bg-secondary text-foreground text-2xs font-bold uppercase">
+                              Locked
                             </span>
-                            <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
-                              {winners.map((winner: { item_value: string }, idx: number) => (
-                                <div key={idx} className="text-2sm font-bold text-foreground">
-                                  {winner.item_value}
-                                </div>
-                              ))}
-                            </div>
                           </div>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-2xs font-bold uppercase ${
+                              statusColors[event.status] || ''
+                            }`}
+                          >
+                            <StatusIcon className="w-3.5 h-3.5" />
+                            {event.status}
+                          </span>
                         )}
-
-                        <div className="mt-4 text-3xs font-bold uppercase tracking-wider text-muted-foreground">
-                          {event.select_count} {event.select_count === 1 ? 'selection' : 'selections'}
-                        </div>
+  
+                        <button
+                          onClick={(e) => { e.preventDefault(); handleDelete(event.id, e); }}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"
+                          title="Delete Event"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-    
-                      <div className="mt-5 pt-4 border-t border-border/20 flex items-center justify-end">
-                        <span className="inline-flex items-center gap-1 text-2sm font-semibold text-primary group-hover:gap-1.5 transition-all">
-                          Enter Room
-                          <Eye className="w-4 h-4" />
+  
+                      <div className="flex items-baseline gap-2 flex-wrap">
+                        <h3 className="font-heading font-extrabold text-lg text-foreground group-hover:text-primary transition-colors leading-snug">
+                          {event.event_name}
+                        </h3>
+                        <span className="text-3xs font-mono px-1.5 py-0.5 rounded bg-secondary/80 text-muted-foreground border border-border/10 font-semibold uppercase">
+                          {`VD-${event.id.substring(0, 6).toUpperCase()}`}
                         </span>
                       </div>
+  
+                      <div className="mt-1.5 text-2sm text-muted-foreground">
+                        {formatTime(event.scheduled_start_time)}
+                      </div>
+  
+                      <div className="mt-3 border-t border-border/10 pt-2.5 flex items-center gap-4 text-2sm">
+                        <div>
+                          <span className="text-muted-foreground font-semibold">Entries:</span>{' '}
+                          <span className="font-bold text-foreground">{event.vd_event_items?.length || 0}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground font-semibold">Winners:</span>{' '}
+                          <span className="font-bold text-foreground">{event.select_count}</span>
+                        </div>
+                      </div>
+  
+                      {winners.length > 0 && (
+                        <div className="mt-2.5 pt-2 border-t border-border/10 space-y-1">
+                          <span className="text-3xs font-extrabold uppercase text-muted-foreground tracking-wider block">
+                            Winners List
+                          </span>
+                          <div className="space-y-1 max-h-[100px] overflow-y-auto pr-1">
+                            {winners.map((winner: { item_value: string }, idx: number) => (
+                              <div key={idx} className="text-2sm font-bold text-foreground flex items-center gap-1.5">
+                                <span className="text-3xs font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20 leading-none">
+                                  #{idx + 1}
+                                </span>
+                                {winner.item_value}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </Link>
                   );
                 })}

@@ -111,13 +111,15 @@ export function ShareResultsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto animate-fade-in animate-duration-200">
-      <div className="bg-background border border-border/80 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5.5 relative animate-scale-in my-8">
-        
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center sm:items-center p-0 sm:p-4 overflow-y-auto animate-fade-in">
+      <div className="bg-background border-t border-x border-border/80 sm:border rounded-t-3xl rounded-b-none sm:rounded-3xl p-6 max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-5.5 relative animate-slide-up sm:animate-scale-in sm:my-8">
+        {/* Drag Handle Indicator for Mobile Bottom Sheet */}
+        <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full mx-auto mb-1 sm:hidden shrink-0" />
+
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-all cursor-pointer font-bold"
+          className="absolute top-4 right-4 p-2 rounded-xl hover:bg-secondary text-muted-foreground hover:text-foreground transition-all cursor-pointer font-bold sm:top-4 sm:right-4"
           aria-label="Close share modal"
         >
           ✕

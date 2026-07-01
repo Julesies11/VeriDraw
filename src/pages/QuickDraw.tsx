@@ -75,6 +75,10 @@ export function QuickDraw() {
       return;
     }
     setStep(2);
+    const mainElement = document.querySelector('main');
+    if (mainElement) {
+      mainElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   const handleGoLiveClick = () => {
@@ -332,7 +336,10 @@ export function QuickDraw() {
     setSeed(null);
     setDuplicatedFromSlug(null);
     setStep(1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const mainElement = document.querySelector('main');
+    if (mainElement) {
+      mainElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
 
@@ -404,17 +411,15 @@ export function QuickDraw() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto">
+    <div className="space-y-6 animate-fade-in max-w-6xl mx-auto pb-28 sm:pb-0">
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border/20 pb-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
               if (step > 1) {
-                if (confirm('Are you sure you want to go back? This will reset the current drawing progress.')) {
-                  handleReset();
-                  setStep(1);
-                }
+                handleReset();
+                setStep(1);
               } else {
                 navigate(ROUTES.DASHBOARD);
               }
@@ -536,30 +541,51 @@ export function QuickDraw() {
             </div>
           )}
 
-          <div className="flex flex-col items-center gap-4 pt-6 border-t border-border/20">
-            <button
-              onClick={handleStartLocalDraw}
-              className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer whitespace-nowrap font-heading text-base animate-pulse-subtle"
-            >
-              Continue
-              <ArrowRight className="w-5 h-5" />
-            </button>
-            
-            <div className="text-2xs font-extrabold text-muted-foreground/60 uppercase tracking-widest">
-              or
+          <div className="pt-6 border-t border-border/20">
+            {/* Desktop Actions */}
+            <div className="hidden sm:flex flex-col items-center gap-4">
+              <button
+                onClick={handleStartLocalDraw}
+                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer whitespace-nowrap font-heading text-base animate-pulse-subtle"
+              >
+                Continue
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              
+              <div className="text-2xs font-extrabold text-muted-foreground/60 uppercase tracking-widest">
+                or
+              </div>
+
+              <div className="w-full flex flex-col items-center gap-2">
+                <button
+                  onClick={handleGoLiveClick}
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer font-heading"
+                >
+                  <Save className="w-4.5 h-4.5" />
+                  Go Live Instead
+                </button>
+                <p className="text-3xs text-muted-foreground text-center max-w-xs leading-normal font-medium">
+                  Turn this into a scheduled live event and invite spectators.
+                </p>
+              </div>
             </div>
 
-            <div className="w-full flex flex-col items-center gap-2">
+            {/* Mobile Sticky Action Bar */}
+            <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-md p-4 flex gap-3 sm:hidden animate-fade-in">
               <button
                 onClick={handleGoLiveClick}
-                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer font-heading"
+                className="flex-1 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold text-2sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <Save className="w-4.5 h-4.5" />
-                Go Live Instead
+                <Save className="w-4 h-4" />
+                Go Live
               </button>
-              <p className="text-3xs text-muted-foreground text-center max-w-xs leading-normal font-medium">
-                Turn this into a scheduled live event and invite spectators.
-              </p>
+              <button
+                onClick={handleStartLocalDraw}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold text-2sm transition-all cursor-pointer flex items-center justify-center gap-1.5 animate-pulse-subtle"
+              >
+                Continue
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
@@ -655,20 +681,21 @@ export function QuickDraw() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
+              {/* Completed Actions - Sticky on Mobile */}
+              <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-md p-4 flex gap-3 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:border-t-0 sm:bg-transparent sm:p-0 sm:flex-col sm:gap-3 w-full sm:max-w-xs shrink-0 animate-fade-in">
                 <button
                   onClick={() => setIsShareResultsModalOpen(true)}
-                  className="w-full py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-initial py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-1.5 text-2sm sm:text-base"
                 >
                   <Share2 className="w-4.5 h-4.5" />
                   Share Results
                 </button>
                 <button
                   onClick={handleCreateNewDraw}
-                  className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-initial py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-1.5 text-2sm sm:text-base"
                 >
                   <Sparkles className="w-4.5 h-4.5" />
-                  Create New Draw
+                  New Draw
                 </button>
               </div>
             </div>
@@ -723,27 +750,25 @@ export function QuickDraw() {
                   </div>
                 )}
 
-                {/* Local Action Buttons */}
-                <div className="mt-6 z-20 w-full px-2 flex flex-col sm:flex-row gap-3">
+                {/* Local Action Buttons - Sticky on Mobile */}
+                <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-md p-4 flex gap-3 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:border-t-0 sm:bg-transparent sm:p-0 sm:mt-6 animate-fade-in">
+                  <button
+                    onClick={() => {
+                      handleReset();
+                      setStep(1);
+                    }}
+                    disabled={isSpinning}
+                    className="py-3 px-4 sm:py-3.5 sm:px-5 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold text-2sm sm:text-base transition-all cursor-pointer select-none shrink-0 sm:shrink"
+                  >
+                    Setup
+                  </button>
                   <button
                     onClick={handleSpin}
                     disabled={isSpinning || activeItems.length === 0 || items.filter((i) => i.is_selected).length >= (selectCount || 1)}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none"
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-3 sm:py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none text-2sm sm:text-base"
                   >
-                    <Play className="w-5 h-5" />
+                    <Play className="w-4.5 h-4.5" />
                     Spin Wheel
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (confirm('Are you sure you want to go back? This will reset the current drawing progress.')) {
-                        handleReset();
-                        setStep(1);
-                      }
-                    }}
-                    disabled={isSpinning}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer select-none"
-                  >
-                    Back to Setup
                   </button>
                 </div>
               </div>

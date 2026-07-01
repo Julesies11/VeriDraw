@@ -44,12 +44,15 @@ export function GoLiveModal({ isOpen, onClose, user, onConfirm, loading }: GoLiv
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in animate-duration-200">
-      <div className="bg-background border border-border/80 rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 relative animate-scale-in">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-end justify-center sm:items-center p-0 sm:p-4 animate-fade-in">
+      <div className="bg-background border-t border-x border-border/80 sm:border rounded-t-3xl rounded-b-none sm:rounded-3xl p-6 sm:p-5 max-w-md sm:max-w-sm w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4 relative animate-slide-up sm:animate-scale-in">
+        {/* Drag Handle Indicator for Mobile Bottom Sheet */}
+        <div className="w-12 h-1.5 bg-muted-foreground/20 rounded-full mx-auto mb-1 sm:hidden shrink-0" />
+
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-3.5 right-3.5 p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-all cursor-pointer font-bold text-xs"
+          className="absolute top-3.5 right-3.5 p-1.5 rounded-lg hover:bg-secondary text-muted-foreground hover:text-foreground transition-all cursor-pointer font-bold text-xs sm:top-3.5 sm:right-3.5"
           aria-label="Close modal"
           disabled={loading}
         >

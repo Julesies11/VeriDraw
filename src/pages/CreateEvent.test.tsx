@@ -80,4 +80,18 @@ describe('CreateEvent Page Smoke Test', () => {
     const errorMsg = await within(container).findByText(/number of winners/i);
     expect(errorMsg).toBeDefined();
   });
+
+  it('renders responsive mobile sticky bottom action bar', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <CreateEvent />
+      </MemoryRouter>
+    );
+
+    // Verify presence of mobile sticky bar wrapper
+    const stickyBar = container.querySelector('.fixed.bottom-0');
+    expect(stickyBar).toBeTruthy();
+    expect(within(stickyBar as HTMLElement).getByText('Cancel')).toBeTruthy();
+    expect(within(stickyBar as HTMLElement).getByText('Create Event')).toBeTruthy();
+  });
 });

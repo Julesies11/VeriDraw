@@ -205,7 +205,10 @@ export function DrawRoom() {
   // Scroll to top when the draw status shifts to completed
   useEffect(() => {
     if (event?.status === 'completed') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainElement = document.querySelector('main');
+      if (mainElement) {
+        mainElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   }, [event?.status]);
 
@@ -652,7 +655,7 @@ export function DrawRoom() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in relative min-h-[85vh]">
+    <div className="space-y-6 animate-fade-in relative min-h-[85vh] pb-28 sm:pb-0">
       {/* Floating emoji reactions overlay — managed by ReactionsOverlay via ref */}
       <ReactionsOverlay ref={reactionsRef} />
 
@@ -800,9 +803,9 @@ export function DrawRoom() {
               </div>
             </div>
 
-            {/* Host Controls */}
+            {/* Host Controls - Sticky on Mobile */}
             {isHost && (
-              <div className="border-t border-border/10 pt-5 w-full flex justify-center">
+              <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-md p-4 flex justify-center sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:border-t-0 sm:bg-transparent sm:p-0 sm:pt-5 sm:border-t-border/10 animate-fade-in">
                 <button
                   disabled={isActivating}
                   onClick={async () => {
@@ -817,9 +820,9 @@ export function DrawRoom() {
                       setIsActivating(false);
                     }
                   }}
-                  className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer text-2sm sm:text-base"
                 >
-                  <Play className="w-4 h-4 fill-current" />
+                  <Play className="w-4.5 h-4.5 fill-current" />
                   Start Draw Now
                 </button>
               </div>
@@ -955,58 +958,79 @@ export function DrawRoom() {
                 </p>
               </div>
 
-              {isHost ? (
-                <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
-                  <button
-                    onClick={() => setIsShareResultsModalOpen(true)}
-                    className="w-full py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <Share2 className="w-4.5 h-4.5" />
-                    Share Results
-                  </button>
-                  <button
-                    onClick={handleCreateNewDraw}
-                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <Sparkles className="w-4.5 h-4.5" />
-                    Create New Draw
-                  </button>
-                  <button
-                    onClick={handleDuplicateDraw}
-                    className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <Copy className="w-4.5 h-4.5" />
-                    Duplicate & Run Again
-                  </button>
-                  <button
-                    onClick={startReplay}
-                    className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <Play className="w-4 h-4 fill-current text-primary" />
-                    Watch Replay
-                  </button>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3 w-full max-w-xs shrink-0">
-                  <button
-                    onClick={startReplay}
-                    className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <Play className="w-4 h-4 fill-current text-white" />
-                    Watch Replay
-                  </button>
-                  <button
-                    onClick={() => setIsShareResultsModalOpen(true)}
-                    className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    <Share2 className="w-4.5 h-4.5 text-primary" />
-                    Share Results
-                  </button>
-                  <div className="w-full p-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center border border-border/20 shrink-0">
-                    This draw is complete and the results are verified.
-                  </div>
-                </div>
-              )}
+              {/* Desktop Actions */}
+              <div className="hidden sm:flex flex-col gap-3 w-full max-w-xs shrink-0">
+                {isHost ? (
+                  <>
+                    <button
+                      onClick={() => setIsShareResultsModalOpen(true)}
+                      className="w-full py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Share2 className="w-4.5 h-4.5" />
+                      Share Results
+                    </button>
+                    <button
+                      onClick={handleCreateNewDraw}
+                      className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Sparkles className="w-4.5 h-4.5" />
+                      Create New Draw
+                    </button>
+                    <button
+                      onClick={handleDuplicateDraw}
+                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Copy className="w-4.5 h-4.5" />
+                      Duplicate & Run Again
+                    </button>
+                    <button
+                      onClick={startReplay}
+                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4 fill-current text-primary" />
+                      Watch Replay
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={startReplay}
+                      className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Play className="w-4 h-4 fill-current text-white" />
+                      Watch Replay
+                    </button>
+                    <button
+                      onClick={() => setIsShareResultsModalOpen(true)}
+                      className="w-full py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Share2 className="w-4.5 h-4.5 text-primary" />
+                      Share Results
+                    </button>
+                    <div className="w-full p-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center border border-border/20 shrink-0">
+                      This draw is complete and the results are verified.
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Mobile Sticky Actions */}
+              <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-md p-4 flex gap-3 sm:hidden animate-fade-in">
+                <button
+                  onClick={startReplay}
+                  className="flex-1 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold text-2sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Play className="w-4 h-4 fill-current text-primary" />
+                  Replay
+                </button>
+                <button
+                  onClick={() => setIsShareResultsModalOpen(true)}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent hover:opacity-95 text-white font-bold shadow-md shadow-primary/25 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Share2 className="w-4.5 h-4.5" />
+                  Share Results
+                </button>
+              </div>
             </div>
           ) : (
             /* Active Draw Grid */
@@ -1080,10 +1104,10 @@ export function DrawRoom() {
                   />
                 </div>
 
-                {/* Action buttons */}
-                <div className="mt-6 flex items-center gap-3.5 z-20 w-full px-2">
+                {/* Action buttons - Sticky on Mobile */}
+                <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-md p-4 flex items-center gap-3 sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:border-t-0 sm:bg-transparent sm:p-0 sm:mt-6 animate-fade-in">
                   {isReplaying ? (
-                    <div className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-primary/10 border border-primary/20 rounded-xl text-2sm text-primary text-center font-bold animate-pulse">
+                    <div className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/20 text-2sm text-primary text-center font-bold animate-pulse">
                       <Play className="w-4 h-4 fill-current shrink-0" />
                       <span>Replay Mode Active</span>
                     </div>
@@ -1091,13 +1115,13 @@ export function DrawRoom() {
                     <button
                       onClick={handleHostSpin}
                       disabled={event.status === 'active' || isSpinning || remainingItems.length === 0}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none"
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer select-none text-2sm sm:text-base"
                     >
-                      <Play className="w-5 h-5 fill-current" />
+                      <Play className="w-4.5 h-4.5 fill-current" />
                       {event.status === 'active' || isSpinning ? 'Drawing...' : 'Spin Wheel'}
                     </button>
                   ) : (
-                    <div className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-secondary/50 rounded-xl text-2xs text-muted-foreground text-center">
+                    <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-secondary/50 text-2xs text-muted-foreground text-center border border-border/10">
                       <Info className="w-4 h-4 text-primary shrink-0" />
                       <span>
                         Waiting for the draw to commence...

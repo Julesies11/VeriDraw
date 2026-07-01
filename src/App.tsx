@@ -12,6 +12,7 @@ import { ResetPassword } from '@/pages/ResetPassword';
 import { Profile } from '@/pages/Profile';
 import { VerifyDraw } from '@/pages/VerifyDraw';
 import { ROUTES } from '@/config/routes.config';
+import { ScrollToTop } from '@/components/ScrollToTop';
 
 // Vanity /join/:code route redirecting to /draw/:code
 function JoinRedirect() {
@@ -24,6 +25,7 @@ export function App() {
     <QueryProvider>
       <AuthProvider>
         <BrowserRouter>
+          <ScrollToTop />
           <MainLayout>
             <Routes>
               {/* Core Dashboard */}

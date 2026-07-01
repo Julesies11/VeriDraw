@@ -277,7 +277,7 @@ export function CreateEvent() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in pb-28 sm:pb-0">
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(ROUTES.DASHBOARD)}
@@ -501,30 +501,30 @@ export function CreateEvent() {
           </div>
         </div>
 
-        {/* Footer submit action */}
-        <div className="pt-4 border-t border-border/20 flex flex-col gap-4">
-          {error && (
-            <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
-              {error}
-            </div>
-          )}
-          <div className="flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate(ROUTES.DASHBOARD)}
-              className="px-5 py-2.5 rounded-xl hover:bg-secondary text-sm font-semibold text-secondary-foreground transition-all cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !isDirty}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-            >
-              <Save className="w-4.5 h-4.5" />
-              {loading ? 'Creating...' : 'Create Event'}
-            </button>
+        {/* Error Alert (Sits at the bottom of form contents before the sticky bar) */}
+        {error && (
+          <div className="p-4 rounded-xl bg-destructive/10 text-destructive text-sm border border-destructive/20">
+            {error}
           </div>
+        )}
+
+        {/* Footer submit action - Sticky on mobile */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-md p-4 flex flex-row gap-3 justify-end sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:border-t-0 sm:bg-transparent sm:p-0">
+          <button
+            type="button"
+            onClick={() => navigate(ROUTES.DASHBOARD)}
+            className="flex-1 sm:flex-initial px-5 py-3 sm:py-2.5 rounded-xl hover:bg-secondary text-sm font-semibold text-secondary-foreground transition-all cursor-pointer text-center bg-secondary/50 sm:bg-transparent border border-border sm:border-0"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading || !isDirty}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+          >
+            <Save className="w-4.5 h-4.5" />
+            {loading ? 'Creating...' : 'Create Event'}
+          </button>
         </div>
       </form>
     </div>
