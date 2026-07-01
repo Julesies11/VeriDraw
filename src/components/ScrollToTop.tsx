@@ -5,9 +5,9 @@ export function ScrollToTop() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    const mainElement = document.querySelector('main');
+    const mainElement = document.getElementById('main-content') || document.querySelector('main');
     if (mainElement) {
-      mainElement.scrollIntoView({ behavior: 'auto', block: 'start' });
+      mainElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } else {
       window.scrollTo(0, 0);
     }

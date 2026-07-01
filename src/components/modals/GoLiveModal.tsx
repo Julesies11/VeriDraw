@@ -195,7 +195,7 @@ export function GoLiveModal({ isOpen, onClose, user, onConfirm, loading }: GoLiv
                   Processing...
                 </>
               ) : (
-                'Go Live'
+                'Continue'
               )}
             </button>
           </div>

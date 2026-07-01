@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useAuth } from '@/hooks/useAuth';
 import { eventsApi, type EventRow } from '@/api/events';
 import { ROUTES } from '@/config/routes.config';
-import { PlusCircle, Trash2, Calendar, CheckCircle, Play } from 'lucide-react';
+import { PlusCircle, Trash2, Calendar, CheckCircle, Play, Zap, Users } from 'lucide-react';
 import { getFriendlyErrorMessage, logErrorToDb } from '@/lib/error-helpers';
 
 export function Dashboard() {
@@ -160,10 +160,15 @@ export function Dashboard() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(128,128,128,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(128,128,128,0.03)_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
         
         <div className="relative z-10 max-w-2xl mx-auto space-y-5">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-2xs font-bold uppercase tracking-wider">
-            Fair, transparent random selections.
+          <div className="flex flex-col items-center gap-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-2xs font-bold uppercase tracking-wider">
+              Fair, transparent random selections.
+            </div>
+            <div className="text-[10px] font-black text-purple-400 uppercase tracking-widest bg-purple-500/10 px-2.5 py-1 rounded-lg inline-block select-none leading-none">
+              100% Free • No subscriptions • No credit card required
+            </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-black font-heading tracking-tight text-foreground">
+          <h1 className="text-4xl md:text-5xl font-black font-heading tracking-tight text-foreground mt-1.5">
             VeriDraw
           </h1>
           <p className="text-sm md:text-base text-muted-foreground font-medium max-w-lg mx-auto leading-relaxed">
@@ -174,8 +179,16 @@ export function Dashboard() {
           <div className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto w-full">
             {/* Action 1: Quick Draw */}
             <div className="p-5 rounded-2xl border border-border/40 bg-secondary/35 flex flex-col justify-between items-center text-center space-y-4 shadow-sm hover:border-primary/20 transition-all">
-              <div className="space-y-1.5">
-                <h3 className="font-heading font-extrabold text-md text-foreground">Quick Draw</h3>
+              <div className="space-y-1.5 flex flex-col items-center">
+                <div className="flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-primary shrink-0" />
+                  <h3 className="font-heading font-extrabold text-md text-foreground">Quick Draw</h3>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-green-500 tracking-wide bg-green-500/10 px-2.5 py-0.5 rounded-md inline-block select-none leading-none">
+                    Free • No account required
+                  </div>
+                </div>
                 <p className="text-2xs text-muted-foreground leading-normal max-w-[240px]">
                   Spin the wheel instantly. No account required. Perfect for quick decisions, team selections, and random picks.
                 </p>
@@ -189,10 +202,18 @@ export function Dashboard() {
               </button>
             </div>
 
-            {/* Action 2: Live Event */}
+            {/* Action 2: Schedule Event */}
             <div className="p-5 rounded-2xl border border-border/40 bg-secondary/35 flex flex-col justify-between items-center text-center space-y-4 shadow-sm hover:border-primary/20 transition-all">
-              <div className="space-y-1.5">
-                <h3 className="font-heading font-extrabold text-md text-foreground">Live Event</h3>
+              <div className="space-y-1.5 flex flex-col items-center">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-primary shrink-0" />
+                  <h3 className="font-heading font-extrabold text-md text-foreground">Schedule Event</h3>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold text-blue-500 tracking-wide bg-blue-500/10 px-2.5 py-0.5 rounded-md inline-block select-none leading-none">
+                    Free account required
+                  </div>
+                </div>
                 <p className="text-2xs text-muted-foreground leading-normal max-w-[240px]">
                   Create a scheduled draw, invite spectators, and watch the results unfold live.
                 </p>
@@ -200,26 +221,29 @@ export function Dashboard() {
               {user ? (
                 <button
                   onClick={() => navigate(ROUTES.CREATE_EVENT)}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-foreground text-background font-bold hover:opacity-90 transition-all cursor-pointer"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-foreground text-background font-bold hover:opacity-90 transition-all cursor-pointer text-center"
                 >
                   <PlusCircle className="w-4.5 h-4.5" />
-                  Create Event
+                  Schedule Event
                 </button>
               ) : (
                 <Link
                   to={ROUTES.LOGIN}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-foreground text-background font-bold hover:opacity-90 transition-all text-center"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-tr from-primary to-accent text-white font-bold hover:opacity-90 transition-all text-center"
                 >
                   <PlusCircle className="w-4.5 h-4.5" />
-                  Create Event
+                  Schedule Event
                 </Link>
               )}
             </div>
 
             {/* Action 3: Join Room */}
             <div className="p-5 rounded-2xl border border-border/40 bg-secondary/35 flex flex-col justify-between items-center text-center space-y-4 shadow-sm hover:border-primary/20 transition-all">
-              <div className="space-y-1.5 w-full">
-                <h3 className="font-heading font-extrabold text-md text-foreground">Join Live Event</h3>
+              <div className="space-y-1.5 w-full flex flex-col items-center">
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-primary shrink-0" />
+                  <h3 className="font-heading font-extrabold text-md text-foreground">Join Live Event</h3>
+                </div>
                 <p className="text-2xs text-muted-foreground leading-normal max-w-[240px] mx-auto">
                   Got an invite? Enter the link or event code to watch the draw unfold live.
                 </p>

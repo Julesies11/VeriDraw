@@ -27,6 +27,7 @@ describe('ScrollToTop Component', () => {
   it('scrolls the main element into view when path changes', async () => {
     // Set up dummy DOM for main element
     const main = document.createElement('main');
+    main.id = 'main-content';
     document.body.appendChild(main);
 
     const { getByText } = render(

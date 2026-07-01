@@ -40,7 +40,7 @@ describe('QuickDraw Page Smoke Test', () => {
   });
 
   it('opens the Go Live Modal when clicking Go Live & Invite Viewers with valid entries', () => {
-    const { getByText, container } = render(
+    const { getByText, getAllByText, container } = render(
       <MemoryRouter>
         <QuickDraw />
       </MemoryRouter>
@@ -55,10 +55,10 @@ describe('QuickDraw Page Smoke Test', () => {
     expect(textarea).toBeTruthy();
     fireEvent.change(textarea!, { target: { value: "Entry 1\nEntry 2" } });
 
-    // Click Go Live Instead
-    const goLiveBtn = getByText('Go Live Instead');
+    // Click Schedule for later
+    const goLiveBtn = getAllByText('Schedule for later')[0];
     fireEvent.click(goLiveBtn);
-
+ 
     // Verify modal header is rendered
     expect(getByText('Create Live Event')).toBeTruthy();
   });
@@ -73,7 +73,7 @@ describe('QuickDraw Page Smoke Test', () => {
     // Verify presence of mobile sticky bar wrapper
     const stickyBar = container.querySelector('.fixed.bottom-0');
     expect(stickyBar).toBeTruthy();
-    expect(stickyBar?.textContent).toContain('Go Live');
+    expect(stickyBar?.textContent).toContain('Schedule for later');
     expect(stickyBar?.textContent).toContain('Continue');
   });
 });

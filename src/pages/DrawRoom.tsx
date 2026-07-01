@@ -205,7 +205,7 @@ export function DrawRoom() {
   // Scroll to top when the draw status shifts to completed
   useEffect(() => {
     if (event?.status === 'completed') {
-      const mainElement = document.querySelector('main');
+      const mainElement = document.getElementById('main-content');
       if (mainElement) {
         mainElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }

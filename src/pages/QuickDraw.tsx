@@ -75,7 +75,7 @@ export function QuickDraw() {
       return;
     }
     setStep(2);
-    const mainElement = document.querySelector('main');
+    const mainElement = document.getElementById('main-content');
     if (mainElement) {
       mainElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -336,7 +336,7 @@ export function QuickDraw() {
     setSeed(null);
     setDuplicatedFromSlug(null);
     setStep(1);
-    const mainElement = document.querySelector('main');
+    const mainElement = document.getElementById('main-content');
     if (mainElement) {
       mainElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
@@ -559,10 +559,10 @@ export function QuickDraw() {
               <div className="w-full flex flex-col items-center gap-2">
                 <button
                   onClick={handleGoLiveClick}
-                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer font-heading"
+                  className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold transition-all cursor-pointer font-heading text-sm"
                 >
                   <Save className="w-4.5 h-4.5" />
-                  Go Live Instead
+                  Schedule for later
                 </button>
                 <p className="text-3xs text-muted-foreground text-center max-w-xs leading-normal font-medium">
                   Turn this into a scheduled live event and invite spectators.
@@ -577,7 +577,7 @@ export function QuickDraw() {
                 className="flex-1 py-3 rounded-xl bg-secondary hover:bg-border/20 border border-border text-foreground font-bold text-2sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 <Save className="w-4 h-4" />
-                Go Live
+                Schedule for later
               </button>
               <button
                 onClick={handleStartLocalDraw}

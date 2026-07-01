@@ -24,7 +24,7 @@ vi.mock('@/api/events', () => ({
 
 describe('Dashboard Page Smoke Test', () => {
   it('renders without crashing and displays action zones', async () => {
-    const { getByText, getByRole } = render(
+    const { getByText, getAllByText, getByRole } = render(
       <MemoryRouter>
         <Dashboard />
       </MemoryRouter>
@@ -33,7 +33,7 @@ describe('Dashboard Page Smoke Test', () => {
     // Assert main header and sub-options
     expect(getByRole('heading', { name: 'VeriDraw' })).toBeDefined();
     expect(getByText('Quick Draw')).toBeDefined();
-    expect(getByText('Live Event')).toBeDefined();
+    expect(getAllByText('Schedule Event').length).toBeGreaterThan(0);
     expect(getByText('Join Live Event')).toBeDefined();
   });
 });
