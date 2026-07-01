@@ -64,7 +64,7 @@ describe('QuickDraw Page Smoke Test', () => {
   });
 
   it('renders the mobile sticky action bar on Step 1', () => {
-    const { container, getByText } = render(
+    const { container } = render(
       <MemoryRouter>
         <QuickDraw />
       </MemoryRouter>
